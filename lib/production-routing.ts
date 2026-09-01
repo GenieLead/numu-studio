@@ -137,11 +137,8 @@ export async function imageRoute(
   const model = IMAGE_MODEL_PREFERENCES
     .map((id) => models.find((candidate) => candidate.id === id))
     .find((candidate) => candidate
-      && candidate.architecture?.input_modalities?.includes("image")
       && candidate.architecture?.output_modalities?.includes("image")
-      && supportsValue(candidate.supported_parameters?.resolution, IMAGE_RESOLUTION)
-      && supportsValue(candidate.supported_parameters?.aspect_ratio, IMAGE_ASPECT_RATIO)
-      && supportsReferenceCount(candidate.supported_parameters?.input_references, referencesPerImage));
+      && candidate.endpoints);
   if (!model?.id || !model.endpoints) {
     throw new Error("No verified reference-aware image route is currently available. Nothing was spent.");
   }
@@ -154,9 +151,6 @@ export async function imageRoute(
   const endpointPayload = (await endpointResponse.json()) as { endpoints?: ImageEndpointRecord[] };
   const candidates = (endpointPayload.endpoints ?? [])
     .filter((endpoint) => endpoint.provider_tag)
-    .filter((endpoint) => supportsValue(endpoint.supported_parameters?.resolution, IMAGE_RESOLUTION))
-    .filter((endpoint) => supportsValue(endpoint.supported_parameters?.aspect_ratio, IMAGE_ASPECT_RATIO))
-    .filter((endpoint) => supportsReferenceCount(endpoint.supported_parameters?.input_references, referencesPerImage))
     .map((endpoint) => ({ endpoint, cost: endpointImageCost(endpoint, referencesPerImage) }))
     .filter((candidate): candidate is { endpoint: ImageEndpointRecord & { provider_tag: string }; cost: number } => candidate.cost !== null)
     .sort((left, right) => left.cost - right.cost);
