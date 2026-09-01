@@ -90,17 +90,95 @@ export default function ChatPage() {
     setReferences([]);
     setIsTyping(true);
 
-    // Simulate HAYK response
-    setTimeout(() => {
-      const assistantMessage: Message = {
+    // Get API key from localStorage
+    const apiKey = localStorage.getItem("openrouter_api_key");
+    
+    if (!apiKey) {
+      const errorMessage: Message = {
         id: Math.random().toString(36).substr(2, 9),
         role: "assistant",
-        content: "I've analyzed your references and idea. Here's what I understand:\n\n**Concept:** Create a cinematic luxury perfume film\n**Style:** Desert setting with hard sunlight, tactile and premium feel\n**Key Elements:**\n- Product: NUMU bottle (exact geometry preserved)\n- Character: Falconer in dark clothing\n- Setting: Genuine desert under hard sunlight\n\nI'll prepare the core concept for your approval. Camera, shots, and sound details will follow after you approve the direction.\n\nShall I proceed with the Director's Card?",
+        content: "Please add your OpenRouter API key in Settings first. Click the Profile icon in the sidebar to access Settings.",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
       setIsTyping(false);
-    }, 2000);
+      return;
+    }
+
+    // Build the conversation for the API
+    const apiMessages = [
+      {
+        role: "system",
+        content: `You are HAYK, a world-class creative director for NUMU AI Film Studio. You help users create cinematic, photorealistic, premium advertisements, films, and stories.
+
+Your style:
+- Professional, cinematic, premium tone
+- Focus on photorealistic, live-action realism (no AI/CGI look)
+- Collaborative but not overwhelming
+- Keep secrets behind the scenes (don't reveal all production details at once)
+- Guide users through the creative process step by step
+
+When users share ideas and references:
+1. Analyze what they've provided
+2. Understand the concept, style, and key elements
+3. Propose a creative direction
+4. Wait for approval before proceeding to details
+
+Always respond in a professional, cinematic tone. Use markdown formatting for clarity.`
+      },
+      ...messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content
+      })),
+      {
+        role: "user",
+        content: input
+      }
+    ];
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          apiKey,
+          messages: apiMessages,
+          model: "anthropic/claude-3.5-sonnet"
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        const errorMessage: Message = {
+          id: Math.random().toString(36).substr(2, 9),
+          role: "assistant",
+          content: `Error: ${data.error}. Please check your API key in Settings.`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } else {
+        const assistantMessage: Message = {
+          id: Math.random().toString(36).substr(2, 9),
+          role: "assistant",
+          content: data.choices?.[0]?.message?.content || "No response generated.",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
+    } catch (error) {
+      const errorMessage: Message = {
+        id: Math.random().toString(36).substr(2, 9),
+        role: "assistant",
+        content: "Failed to connect to the API. Please check your internet connection and API key.",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
+
+    setIsTyping(false);
   };
 
   const quickActions = [

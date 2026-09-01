@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Key, 
   Save, 
@@ -18,14 +18,23 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
 
+  // Load existing API key on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem("openrouter_api_key");
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
+
   const handleSave = async () => {
     setIsSaving(true);
-    // Simulate save
+    // Save to localStorage
+    localStorage.setItem("openrouter_api_key", apiKey);
     setTimeout(() => {
       setIsSaving(false);
       setSaveStatus("success");
       setTimeout(() => setSaveStatus("idle"), 3000);
-    }, 1000);
+    }, 500);
   };
 
   return (
