@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   Plus, 
@@ -32,56 +32,15 @@ interface Project {
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"projects" | "assets">("projects");
+  const [projects, setProjects] = useState<Project[]>([]);
   
-  const [projects] = useState<Project[]>([
-    {
-      id: "1",
-      name: "Desert Prism",
-      description: "Cinematic luxury perfume film",
-      assets: [
-        { id: "a1", name: "product reference.jpeg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a2", name: "perfume reference Ad.mp4", type: "video", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a3", name: "Character reference.jpg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-      ],
-      lastModified: new Date(),
-    },
-    {
-      id: "2",
-      name: "NUMU Perfume - Test 02",
-      description: "8-second vertical luxury perfume film",
-      assets: [
-        { id: "a4", name: "product reference.jpeg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a5", name: "perfume reference Ad.mp4", type: "video", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a6", name: "Character reference.jpg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a7", name: "desert landscape.jpg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a8", name: "final shot 01.mp4", type: "video", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a9", name: "final shot 02.mp4", type: "video", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-      ],
-      lastModified: new Date(),
-    },
-    {
-      id: "3",
-      name: "NUMU Desert - Test 01",
-      description: "Desert cinematic test",
-      assets: [
-        { id: "a10", name: "desert reference.jpg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a11", name: "model reference.jpg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a12", name: "AI evidence.mp4", type: "video", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-      ],
-      lastModified: new Date(),
-    },
-    {
-      id: "4",
-      name: "The First Mark",
-      description: "Origin pen opening scene",
-      assets: [
-        { id: "a13", name: "pen reference.jpg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a14", name: "desk reference.jpg", type: "image", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-        { id: "a15", name: "AI evidence.mp4", type: "video", thumbnail: "/api/placeholder/300/200", createdAt: new Date() },
-      ],
-      lastModified: new Date(),
-    },
-  ]);
+  // Load projects from localStorage on mount
+  useEffect(() => {
+    const savedProjects = localStorage.getItem("numu_projects");
+    if (savedProjects) {
+      setProjects(JSON.parse(savedProjects));
+    }
+  }, []);
 
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a]">

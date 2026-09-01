@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { 
   Key, 
   Save, 
@@ -9,7 +10,8 @@ import {
   CheckCircle,
   AlertCircle,
   CreditCard,
-  Activity
+  Activity,
+  ArrowLeft
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -38,12 +40,17 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="h-full bg-[#0a0a0a]">
+    <div className="h-full bg-[#0a0a0a] overflow-y-auto">
       <div className="max-w-3xl mx-auto px-8 py-12">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-gray-500 mt-2">Configure your NUMU Studio</p>
+        <div className="mb-8 flex items-center gap-4">
+          <Link href="/" className="p-2 hover:bg-[#1a1a1a] rounded-xl">
+            <ArrowLeft className="w-5 h-5 text-gray-400" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Settings</h1>
+            <p className="text-gray-500 mt-2">Configure your NUMU Studio</p>
+          </div>
         </div>
 
         {/* API Configuration */}
