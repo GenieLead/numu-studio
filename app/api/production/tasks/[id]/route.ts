@@ -61,13 +61,6 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     production = await refreshProduction(production);
     return Response.json({ task: publicTask({ ...task, status: "failed", error }), production: await publicProduction(production, false) }, { status: 200 });
   }
-      await db.update(productionRuns).set({ status: "stage_failed", error, updatedAt: now }).where(eq(productionRuns.id, task.runId));
-      const [updatedTask] = await db.select().from(productionTasks).where(eq(productionTasks.id, id)).limit(1);
-      production = await refreshProduction(production);
-      return Response.json({ task: publicTask(updatedTask), production: await publicProduction(production, false) }, { headers: { "Cache-Control": "private, no-store" } });
-    }
-    return Response.json({ task: publicTask(task), production: await publicProduction(production, false) }, { headers: { "Cache-Control": "private, no-store" } });
-  }
   if (TERMINAL.has(task.status) && ["completed", "failed"].includes(artifactBefore?.status ?? "")) {
     return Response.json({ task: publicTask(task), production: await publicProduction(production, false) });
   }
