@@ -43,7 +43,7 @@ import { streamedJsonTask } from "@/lib/streamed-json";
 
 const MAX_EVIDENCE_FRAMES = 18;
 const MAX_EVIDENCE_FRAME_BYTES = 420_000;
-const IMAGE_PROVIDER_TIMEOUT_MS = 65_000;
+const IMAGE_PROVIDER_TIMEOUT_MS = 120_000;
 const MOTION_SUBMISSION_TIMEOUT_MS = 20_000;
 const STAGE_TRANSITION: Record<Exclude<ProductionStage, "master">, ProductionStage> = {
   evidence: "identity",

@@ -7,13 +7,9 @@ import {
 
 export const PRODUCTION_PIPELINE_VERSION = "studio-v5";
 export const IMAGE_MODEL_PREFERENCES = [
-  "openai/dall-e-3",
-  "stabilityai/stable-diffusion-xl",
-  "google/gemini-2.0-flash-exp:free",
-  "google/gemini-2.5-flash-preview",
-  "bytedance-seed/seedream-5-0-pro",
-  "bytedance-seed/seedream-4.5",
-  "google/gemini-3-pro-image",
+  "google/gemini-2.5-flash-image",
+  "google/gemini-3-pro-image-preview",
+  "google/gemini-3.1-flash-image-preview",
 ] as const;
 export const MOTION_MODEL = "bytedance/seedance-2.5";
 export const SOURCE_EDIT_MODEL_PREFERENCES = [
