@@ -60,14 +60,15 @@ export async function POST(request: Request) {
       const safeExtension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "").slice(0, 8) || "bin";
       const objectKey = `references/${ownerEmail}/${projectId}/${id}.${safeExtension}`;
       const sha256 = await sha256Hex(bytes);
-      await bucket.put(objectKey, bytes, { httpMetadata: { contentType: file.type } });
+      const blobResult = await bucket.put(objectKey, bytes, { httpMetadata: { contentType: file.type } }) as { url: string } | undefined;
+      const storedObjectKey = blobResult?.url ?? objectKey;
       const [row] = await db
         .insert(references)
         .values({
           id,
           ownerEmail,
           projectId,
-          objectKey,
+          objectKey: storedObjectKey,
           filename: file.name,
           mimeType: file.type,
           byteSize: file.size,

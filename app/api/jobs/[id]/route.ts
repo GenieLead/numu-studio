@@ -78,14 +78,15 @@ export async function GET(
       const bytes = await download.arrayBuffer();
       const outputObjectKey = `outputs/${ownerEmail}/${job.id}/provider-original.mp4`;
       const outputSha256 = await sha256Hex(bytes);
-      await getBucket().put(outputObjectKey, bytes, { httpMetadata: { contentType: "video/mp4" } });
+      const blobResult = await getBucket().put(outputObjectKey, bytes, { httpMetadata: { contentType: "video/mp4" } }) as { url: string } | undefined;
+      const storedObjectKey = blobResult?.url ?? outputObjectKey;
       await db
         .update(jobs)
         .set({
           status,
           actualCostUsd: actualCost,
           responseJson: JSON.stringify(poll),
-          outputObjectKey,
+          outputObjectKey: storedObjectKey,
           outputSha256,
           updatedAt: new Date().toISOString(),
         })

@@ -124,10 +124,11 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
       if (!media.ok) throw new Error(`The completed shot could not be secured (${media.status}).`);
       const bytes = new Uint8Array(await media.arrayBuffer());
       const objectKey = `production/${ownerEmail}/${task.runId}/motion/${task.artifactId}.mp4`;
-      await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: media.headers.get("content-type") || "video/mp4" } });
+      const blobResult = await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: media.headers.get("content-type") || "video/mp4" } }) as { url: string } | undefined;
+      const storedObjectKey = blobResult?.url ?? objectKey;
       await db.update(productionArtifacts).set({
         status: "completed",
-        objectKey,
+        objectKey: storedObjectKey,
         mimeType: media.headers.get("content-type") || "video/mp4",
         actualCostUsd: (Number(artifactBefore?.actualCostUsd ?? 0) + (actualCost ?? Number(task.maxCostUsd))).toFixed(5),
         error: null,

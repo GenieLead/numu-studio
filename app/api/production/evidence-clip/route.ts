@@ -42,7 +42,8 @@ export async function POST(request: Request) {
     const id = existing?.id ?? crypto.randomUUID();
     const extension = contentType === "video/mp4" ? "mp4" : "webm";
     const objectKey = `production/${ownerEmail}/${production.run.id}/evidence/${id}.${extension}`;
-    await getBucket().put(objectKey, bytes, { httpMetadata: { contentType } });
+    const blobResult = await getBucket().put(objectKey, bytes, { httpMetadata: { contentType } }) as { url: string } | undefined;
+    const storedObjectKey = blobResult?.url ?? objectKey;
     const now = new Date().toISOString();
     const values = {
       ownerEmail,
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
       status: "completed",
       approvalStatus: "pending",
       orderIndex: 9000,
-      objectKey,
+      objectKey: storedObjectKey,
       mimeType: contentType,
       metadataJson: JSON.stringify({
         sourceId,

@@ -1,4 +1,4 @@
-import { put, del, head as blobHead } from "@vercel/blob";
+import { put, del, head as blobHead, list } from "@vercel/blob";
 
 type StoredObject = {
   body: ReadableStream;
@@ -18,18 +18,21 @@ type Bucket = {
     options?: { httpMetadata?: { contentType?: string } },
   ): Promise<unknown>;
   delete(key: string): Promise<void>;
+  listByPrefix(prefix: string): Promise<Array<{ key: string; url: string; size: number }>>;
 };
-
-function blobUrlFromKey(key: string): string {
-  const storeId = process.env.BLOB_STORE_ID;
-  if (!storeId) throw new Error("BLOB_STORE_ID is not configured.");
-  return `https://${storeId}.blob.vercel-storage.com/${key}`;
-}
 
 class VercelBlobBucket implements Bucket {
   async get(key: string, options?: { range?: { offset: number; length: number } }): Promise<StoredObject | null> {
-    const url = blobUrlFromKey(key);
     try {
+      let url: string;
+      if (key.startsWith("http://") || key.startsWith("https://")) {
+        url = key;
+      } else {
+        const storeId = process.env.BLOB_STORE_ID;
+        if (!storeId) return null;
+        url = `https://${storeId}.blob.vercel-storage.com/${key}`;
+      }
+
       const headers: Record<string, string> = {};
       if (options?.range) {
         headers["Range"] = `bytes=${options.range.offset}-${options.range.offset + options.range.length - 1}`;
@@ -52,7 +55,12 @@ class VercelBlobBucket implements Bucket {
 
   async head(key: string): Promise<StoredObjectHead | null> {
     try {
-      const info = await blobHead(key);
+      const url = (key.startsWith("http://") || key.startsWith("https://")) ? key : (() => {
+        const storeId = process.env.BLOB_STORE_ID;
+        return storeId ? `https://${storeId}.blob.vercel-storage.com/${key}` : null;
+      })();
+      if (!url) return null;
+      const info = await blobHead(url);
       return {
         httpEtag: info.url,
         size: info.size,
@@ -77,9 +85,28 @@ class VercelBlobBucket implements Bucket {
 
   async delete(key: string): Promise<void> {
     try {
-      const url = blobUrlFromKey(key);
-      await del(url);
+      if (key.startsWith("http://") || key.startsWith("https://")) {
+        await del(key);
+      } else {
+        const storeId = process.env.BLOB_STORE_ID;
+        if (storeId) {
+          await del(`https://${storeId}.blob.vercel-storage.com/${key}`);
+        }
+      }
     } catch { /* ignore */ }
+  }
+
+  async listByPrefix(prefix: string): Promise<Array<{ key: string; url: string; size: number }>> {
+    try {
+      const result = await list({ prefix, limit: 200 });
+      return result.blobs.map((blob) => ({
+        key: blob.pathname,
+        url: blob.url,
+        size: blob.size,
+      }));
+    } catch {
+      return [];
+    }
   }
 }
 

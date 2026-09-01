@@ -639,12 +639,13 @@ async function generateNextImage(production: OwnedProduction, apiKey: string): P
   const mimeType = image.media_type?.startsWith("image/") ? image.media_type : "image/png";
   const extension = mimeType.includes("jpeg") ? "jpg" : mimeType.includes("webp") ? "webp" : "png";
   const objectKey = `production/${production.run.ownerEmail}/${production.run.id}/${stage}/${next.id}.${extension}`;
-  await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: mimeType } });
+  const blobResult = await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: mimeType } }) as { url: string } | undefined;
+  const storedObjectKey = blobResult?.url ?? objectKey;
   const actualCost = typeof payload.usage?.cost === "number" ? payload.usage.cost : route.unitCostUsd;
   const completedAt = new Date().toISOString();
   await db.update(productionArtifacts).set({
     status: "completed",
-    objectKey,
+    objectKey: storedObjectKey,
     mimeType,
     model: route.model,
     actualCostUsd: actualCost.toFixed(5),
@@ -833,7 +834,8 @@ async function ingestEvidence(production: OwnedProduction, frames: ReferenceEvid
     const id = crypto.randomUUID();
     const extension = parsed.mimeType.includes("png") ? "png" : parsed.mimeType.includes("webp") ? "webp" : "jpg";
     const objectKey = `production/${production.run.ownerEmail}/${production.run.id}/evidence/${id}.${extension}`;
-    await getBucket().put(objectKey, parsed.bytes, { httpMetadata: { contentType: parsed.mimeType } });
+    const blobResult = await getBucket().put(objectKey, parsed.bytes, { httpMetadata: { contentType: parsed.mimeType } }) as { url: string } | undefined;
+    const storedObjectKey = blobResult?.url ?? objectKey;
     await db.insert(productionArtifacts).values({
       id,
       ownerEmail: production.run.ownerEmail,
@@ -847,7 +849,7 @@ async function ingestEvidence(production: OwnedProduction, frames: ReferenceEvid
       status: "completed",
       approvalStatus: "pending",
       orderIndex: index,
-      objectKey,
+      objectKey: storedObjectKey,
       mimeType: parsed.mimeType,
       metadataJson: JSON.stringify({ sourceId: frame.sourceId, atSeconds: frame.atSeconds, sampleKind: frame.sampleKind, extraction: "on-device decoded frame" }),
       createdAt: now,

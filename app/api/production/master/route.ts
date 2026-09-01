@@ -34,12 +34,13 @@ export async function POST(request: Request) {
     if (!artifact) return Response.json({ error: "The final test-video artifact is missing." }, { status: 404 });
     const extension = mimeType === "video/mp4" ? "mp4" : "webm";
     const objectKey = `production/${ownerEmail}/${runId}/conform/${artifact.id}.${extension}`;
-    await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: mimeType } });
+    const blobResult = await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: mimeType } }) as { url: string } | undefined;
+    const storedObjectKey = blobResult?.url ?? objectKey;
     const now = new Date().toISOString();
     const previousMetadata = (() => { try { return JSON.parse(artifact.metadataJson) as Record<string, unknown>; } catch { return {}; } })();
     await db.update(productionArtifacts).set({
       status: "completed",
-      objectKey,
+      objectKey: storedObjectKey,
       mimeType,
       actualCostUsd: "0",
       metadataJson: JSON.stringify({

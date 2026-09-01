@@ -4,9 +4,7 @@ import { getDb } from "@/db";
 import { references } from "@/db/schema";
 import { sha256Hex } from "@/lib/encoding";
 import {
-  REFERENCE_CHUNK_BYTES,
   REFERENCE_UPLOAD_ID_PATTERN,
-  referencePartKey,
 } from "@/lib/reference-uploads";
 import { getBucket } from "@/lib/storage";
 import { activeProject } from "@/lib/projects";
@@ -52,29 +50,39 @@ export async function POST(request: Request) {
       return Response.json({ error: "Each reference must be 25 MB or smaller." }, { status: 400 });
     }
 
-    const expectedParts = Math.ceil(byteSize / REFERENCE_CHUNK_BYTES);
+    const expectedParts = Math.ceil(byteSize / (1024 * 1024));
     if (!Number.isInteger(totalParts) || totalParts !== expectedParts) {
       return Response.json({ error: "The reference upload is incomplete." }, { status: 400 });
     }
 
     const bucket = getBucket();
+    const prefix = `reference-parts/${ownerEmail}/${uploadId}/`;
+    const parts = await bucket.listByPrefix(prefix);
+
+    if (parts.length === 0) {
+      return Response.json({ error: "Reference upload parts are missing. Please try uploading again." }, { status: 400 });
+    }
+
+    parts.sort((a, b) => {
+      const aIdx = parseInt(a.key.split("/").pop() ?? "0", 10);
+      const bIdx = parseInt(b.key.split("/").pop() ?? "0", 10);
+      return aIdx - bIdx;
+    });
+
     const assembled = new Uint8Array(byteSize);
-    const keys: string[] = [];
     let offset = 0;
 
-    for (let index = 0; index < totalParts; index += 1) {
-      const key = referencePartKey(ownerEmail, uploadId, index);
-      keys.push(key);
-      const object = await bucket.get(key);
+    for (const part of parts) {
+      const object = await bucket.get(part.url);
       if (!object) {
-        return Response.json({ error: `Reference upload part ${index + 1} is missing.` }, { status: 400 });
+        return Response.json({ error: `Reference upload part could not be read.` }, { status: 400 });
       }
-      const part = new Uint8Array(await new Response(object.body).arrayBuffer());
-      if (!part.byteLength || offset + part.byteLength > byteSize) {
+      const partData = new Uint8Array(await new Response(object.body).arrayBuffer());
+      if (!partData.byteLength || offset + partData.byteLength > byteSize) {
         return Response.json({ error: "The uploaded reference size did not match the original file." }, { status: 400 });
       }
-      assembled.set(part, offset);
-      offset += part.byteLength;
+      assembled.set(partData, offset);
+      offset += partData.byteLength;
     }
 
     if (offset !== byteSize) {
@@ -96,18 +104,20 @@ export async function POST(request: Request) {
       ))
       .limit(1);
     if (existing) {
-      await Promise.allSettled(keys.map((key) => bucket.delete(key)));
+      await Promise.allSettled(parts.map((p) => bucket.delete(p.url)));
       return Response.json({ reference: existing, reused: true }, { status: 200 });
     }
 
-    await bucket.put(objectKey, assembled, { httpMetadata: { contentType: mimeType } });
+    const blobResult = await bucket.put(objectKey, assembled, { httpMetadata: { contentType: mimeType } }) as { url: string } | undefined;
+    const storedObjectKey = blobResult?.url ?? objectKey;
+
     const [row] = await getDb()
       .insert(references)
       .values({
         id,
         ownerEmail,
         projectId,
-        objectKey,
+        objectKey: storedObjectKey,
         filename,
         mimeType,
         byteSize,
@@ -115,7 +125,7 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    await Promise.allSettled(keys.map((key) => bucket.delete(key)));
+    await Promise.allSettled(parts.map((p) => bucket.delete(p.url)));
     return Response.json({ reference: row }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Reference upload could not be completed.";

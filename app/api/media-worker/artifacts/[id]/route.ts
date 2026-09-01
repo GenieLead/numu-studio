@@ -54,9 +54,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   const mimeType = grant.mimeType || request.headers.get("content-type") || "application/octet-stream";
   const extension = mimeType.startsWith("audio/") ? "wav" : mimeType.startsWith("video/") ? "mp4" : "bin";
   const objectKey = `production/${artifact.ownerEmail}/${artifact.runId}/${artifact.stage}/${artifact.id}.${extension}`;
-  await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: mimeType } });
+  const blobResult = await getBucket().put(objectKey, bytes, { httpMetadata: { contentType: mimeType } }) as { url: string } | undefined;
+  const storedObjectKey = blobResult?.url ?? objectKey;
   const now = new Date().toISOString();
-  await getDb().update(productionArtifacts).set({ status: "completed", objectKey, mimeType, error: null, updatedAt: now }).where(eq(productionArtifacts.id, id));
+  await getDb().update(productionArtifacts).set({ status: "completed", objectKey: storedObjectKey, mimeType, error: null, updatedAt: now }).where(eq(productionArtifacts.id, id));
   await getDb().update(productionRuns).set({ status: "stage_ready", error: null, updatedAt: now }).where(eq(productionRuns.id, artifact.runId));
   return Response.json({ stored: true });
 }
