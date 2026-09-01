@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   Film, 
@@ -10,7 +10,8 @@ import {
   User,
   ChevronLeft,
   Trash2,
-  Edit3
+  Edit3,
+  LayoutDashboard
 } from "lucide-react";
 
 interface Project {
@@ -22,14 +23,22 @@ interface Project {
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([
-    { id: "1", name: "Desert Prism", assetCount: 3, lastModified: new Date() },
-    { id: "2", name: "NUMU Perfume - Test 02", assetCount: 6, lastModified: new Date() },
-    { id: "3", name: "NUMU Desert - Test 01", assetCount: 3, lastModified: new Date() },
-    { id: "4", name: "The First Mark", assetCount: 3, lastModified: new Date() },
-  ]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
-  const [selectedProject, setSelectedProject] = useState<string | null>("2");
+  // Load projects from localStorage
+  useEffect(() => {
+    const savedProjects = localStorage.getItem("numu_projects");
+    if (savedProjects) {
+      const parsed = JSON.parse(savedProjects);
+      setProjects(parsed.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        assetCount: p.assets?.length || 0,
+        lastModified: new Date(p.lastModified)
+      })));
+    }
+  }, []);
 
   return (
     <aside className={`${isCollapsed ? 'w-16' : 'w-72'} bg-[#111111] border-r border-[#2a2a2a] flex flex-col transition-all duration-300`}>
@@ -49,7 +58,14 @@ export function Sidebar() {
       </div>
 
       {/* New Project Button */}
-      <div className="p-4">
+      <div className="p-4 space-y-2">
+        <Link 
+          href="/"
+          className="flex items-center gap-3 px-4 py-3 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl transition-colors group"
+        >
+          <LayoutDashboard className="w-5 h-5 text-gray-400 group-hover:text-white" />
+          {!isCollapsed && <span className="text-gray-300">Dashboard</span>}
+        </Link>
         <Link 
           href="/chat"
           className="flex items-center gap-3 px-4 py-3 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl transition-colors group"
