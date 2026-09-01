@@ -145,7 +145,7 @@ Always respond in a professional, cinematic tone. Use markdown formatting for cl
         body: JSON.stringify({
           apiKey,
           messages: apiMessages,
-          model: "anthropic/claude-3.5-sonnet"
+          model: "google/gemini-2.0-flash-001"
         }),
       });
 
@@ -180,6 +180,37 @@ Always respond in a professional, cinematic tone. Use markdown formatting for cl
 
     setIsTyping(false);
   };
+
+  // Save project to localStorage
+  const saveProject = () => {
+    const projectId = new URLSearchParams(window.location.search).get("project") || Date.now().toString();
+    const project = {
+      id: projectId,
+      name: "New Project",
+      description: "",
+      assets: [],
+      messages: messages,
+      lastModified: new Date().toISOString()
+    };
+    
+    const existingProjects = JSON.parse(localStorage.getItem("numu_projects") || "[]");
+    const projectIndex = existingProjects.findIndex((p: any) => p.id === projectId);
+    
+    if (projectIndex >= 0) {
+      existingProjects[projectIndex] = project;
+    } else {
+      existingProjects.push(project);
+    }
+    
+    localStorage.setItem("numu_projects", JSON.stringify(existingProjects));
+  };
+
+  // Auto-save on message changes
+  useEffect(() => {
+    if (messages.length > 1) {
+      saveProject();
+    }
+  }, [messages]);
 
   const quickActions = [
     "Create a perfume film",
