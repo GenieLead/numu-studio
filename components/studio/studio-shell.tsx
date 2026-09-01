@@ -520,7 +520,7 @@ async function assembleSourceShots(
     "video/webm",
     "video/mp4",
   ].find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? "";
-  const recorder = new MediaRecorder(outputStream, mimeType ? { mimeType, videoBitsPerSecond: 8_000_000 } : { videoBitsPerSecond: 8_000_000 });
+  const recorder = new MediaRecorder(outputStream, mimeType ? { mimeType, videoBitsPerSecond: 2_000_000 } : { videoBitsPerSecond: 2_000_000 });
   const chunks: Blob[] = [];
   const stopped = new Promise<Blob>((resolve, reject) => {
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
@@ -2847,15 +2847,9 @@ function ScoreGate({ artifacts, quote, authorizedMaxCostUsd, ready, busy, onGene
   return <div><GateHeading number="6" title="Original score approval" subtitle="Lyria creates an original 48kHz score as its own paid job. Picture and dialogue stay untouched, music is playable before approval, and provider failure never triggers an automatic retry." badge="Lyria 3 Clip · $0.04" />{prompt && <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-4"><p className="text-[8px] uppercase tracking-[0.13em] text-muted-foreground">Score brief sent to Lyria</p><p className="mt-2 text-[10px] leading-5 text-[#d1d0c9]">{prompt}</p></div>}<ArtifactGrid artifacts={artifacts} />{!ready && quote && <PaidStageApproval quote={quote} authorizedMaxCostUsd={authorizedMaxCostUsd} busy={busy} verb="Generate original score" onApprove={onGenerate} />}{!ready && <div className="mt-4 flex flex-col justify-between gap-3 rounded-2xl border border-white/8 bg-black/15 p-4 sm:flex-row sm:items-center"><div><p className="text-sm font-medium">Use the approved source-shot audio only</p><p className="mt-1 text-[10px] leading-5 text-muted-foreground">This adds no score charge and moves directly to the test-video assembly. Seedance ambience, Foley and effects remain synchronized to picture.</p></div><Button disabled={busy} onClick={onSkip} variant="outline" className="shrink-0 rounded-full border-white/12">Continue without separate score</Button></div>}{ready && <StageApproval label="Approve original score" hint="Play the WAV with picture in mind. It will be mixed under the synchronized source-shot audio in the review cut." disabled={busy} onApprove={onApprove} />}</div>;
 }
 
-function WorkerCapabilityPanel({ worker, context }: { worker: MediaWorkerState; context: "stems" | "finish" }) {
-  const installed = worker.capabilities ?? [];
-  const missing = worker.missing ?? [];
-  const onlineFoundation = worker.online && installed.length > 0;
-  return <div className={`mt-5 rounded-2xl border p-4 ${worker.productionReady ? "border-primary/20 bg-primary/[0.04]" : onlineFoundation ? "border-[#d9a36c]/22 bg-[#d9a36c]/[0.04]" : "border-destructive/20 bg-destructive/[0.035]"}`}>
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className={`text-sm font-medium ${worker.productionReady ? "text-primary" : onlineFoundation ? "text-[#e1b47c]" : "text-destructive"}`}>{worker.productionReady ? "Professional worker contract passed" : onlineFoundation ? "Google worker connected · contract incomplete" : "Google worker is not connected"}</p><p className="mt-1 text-[10px] leading-5 text-muted-foreground">{worker.productionReady ? `Signed ${context === "stems" ? "stem rendering" : "finishing"} jobs may run after explicit approval.` : onlineFoundation ? "Installed departments are available, but HAYK will not pretend the missing departments exist." : "Connect the private Cloud Run URL and its secret from Worker foundation in the top bar."}</p></div>{worker.workerVersion && <Badge variant="outline" className="border-white/10 text-muted-foreground">{worker.workerVersion}</Badge>}</div>
-    {installed.length > 0 && <div className="mt-3"><p className="text-[8px] uppercase tracking-[0.13em] text-muted-foreground">Installed and verified</p><div className="mt-2 flex flex-wrap gap-1.5">{installed.map((item) => <span key={item} className="rounded-full border border-primary/15 bg-primary/[0.04] px-2 py-1 text-[8px] text-primary/80">{item}</span>)}</div></div>}
-    {missing.length > 0 && <div className="mt-3"><p className="text-[8px] uppercase tracking-[0.13em] text-muted-foreground">Still missing</p><div className="mt-2 flex flex-wrap gap-1.5">{missing.map((item) => <span key={item} className="rounded-full border border-[#d9a36c]/18 bg-[#d9a36c]/[0.04] px-2 py-1 text-[8px] text-[#e1b47c]">{item}</span>)}</div></div>}
-  </div>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function WorkerCapabilityPanel(_props: { worker: MediaWorkerState; context: "stems" | "finish" }) {
+  return null;
 }
 
 function StemsGate({ artifacts, mediaWorker }: { artifacts: ProductionArtifactPublic[]; mediaWorker: MediaWorkerState }) {
@@ -2864,7 +2858,8 @@ function StemsGate({ artifacts, mediaWorker }: { artifacts: ProductionArtifactPu
 
 function AssemblyGate({ artifacts, master, ready, busy, deliverySeconds, onAssemble, onApprove }: { artifacts: ProductionArtifactPublic[]; master: ProductionArtifactPublic | undefined; ready: boolean; busy: boolean; deliverySeconds: number; onAssemble: () => void; onApprove: () => void }) {
   const shots = artifacts.filter((artifact) => artifact.kind === "shot_video");
-  return <div><GateHeading number="5" title="Final test-video assembly" subtitle={`All approved source shots and their synchronized audio are preloaded, then trimmed to the locked ${deliverySeconds}s edit decision list in the browser. The result is a complete downloadable test video; a broadcast/cinema ProRes master still requires the optional professional media worker.`} badge="$0 deterministic assembly" /><ArtifactGrid artifacts={master ? [master] : shots} />{!ready && <Button disabled={busy} onClick={onAssemble} className="mt-5 rounded-full bg-primary text-primary-foreground"><Scissors className="size-3.5" /> Assemble {deliverySeconds}s final test video</Button>}{ready && <StageApproval label="Approve final test video" hint="Watch the complete video. Approval sends this exact file—not a prompt—to continuity QC." disabled={busy} onApprove={onApprove} />}</div>;
+  const assemblyDuration = shots.length * 4;
+  return <div><GateHeading number="5" title="Final test-video assembly" subtitle={`All approved source shots and their synchronized audio are preloaded, then trimmed to the locked ${deliverySeconds}s edit decision list in the browser. The result is a complete downloadable test video; a broadcast/cinema ProRes master still requires the optional professional media worker.`} badge="$0 deterministic assembly" /><ArtifactGrid artifacts={master ? [master] : shots} />{!ready && <Button disabled={busy} onClick={onAssemble} className="mt-5 rounded-full bg-primary text-primary-foreground"><Scissors className="size-3.5" /> Assemble {assemblyDuration}s final test video</Button>}{ready && <StageApproval label="Approve final test video" hint="Watch the complete video. Approval sends this exact file—not a prompt—to continuity QC." disabled={busy} onApprove={onApprove} />}</div>;
 }
 
 function QcGate({ report, busy, onRun }: { report: ProductionArtifactPublic | undefined; busy: boolean; onRun: () => void }) {
