@@ -47,6 +47,20 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
         eq(productionArtifacts.id, task.artifactId),
         eq(productionArtifacts.status, "working"),
       ));
+      production = await refreshProduction(production);
+      return Response.json({ task: publicTask({ ...task, status: "failed", error }), production: await publicProduction(production, false) }, { status: 200 });
+    }
+  }
+  const taskAge = Date.parse(task.updatedAt);
+  if (Number.isFinite(taskAge) && Date.now() - taskAge >= 5 * 60_000 && ["authorizing", "working", "queued", "in_progress"].includes(task.status)) {
+    const now = new Date().toISOString();
+    const error = "The video generation has been stuck for over 5 minutes. OpenRouter may have queued it indefinitely. No automatic retry was made. Prepare a manual retry.";
+    await db.update(productionTasks).set({ status: "failed", error, updatedAt: now }).where(eq(productionTasks.id, id));
+    await db.update(productionArtifacts).set({ status: "failed", error, updatedAt: now }).where(eq(productionArtifacts.id, task.artifactId));
+    await db.update(productionRuns).set({ status: "stage_failed", error, updatedAt: now }).where(eq(productionRuns.id, task.runId));
+    production = await refreshProduction(production);
+    return Response.json({ task: publicTask({ ...task, status: "failed", error }), production: await publicProduction(production, false) }, { status: 200 });
+  }
       await db.update(productionRuns).set({ status: "stage_failed", error, updatedAt: now }).where(eq(productionRuns.id, task.runId));
       const [updatedTask] = await db.select().from(productionTasks).where(eq(productionTasks.id, id)).limit(1);
       production = await refreshProduction(production);
