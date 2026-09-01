@@ -1,0 +1,175 @@
+import { sql } from "drizzle-orm";
+import { boolean, index, integer, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+
+export const projects = pgTable("studio_projects", {
+  id: text("id").primaryKey(),
+  ownerEmail: text("owner_email").notNull(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("active"),
+  draftPrompt: text("draft_prompt"),
+  draftReferenceIdsJson: text("draft_reference_ids_json").notNull().default("[]"),
+  createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+  updatedAt: text("updated_at").notNull().default(sql`NOW()::TEXT`),
+});
+
+export const references = pgTable("studio_references", {
+  id: text("id").primaryKey(),
+  ownerEmail: text("owner_email").notNull(),
+  projectId: text("project_id"),
+  objectKey: text("object_key").notNull(),
+  filename: text("filename").notNull(),
+  mimeType: text("mime_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  sha256: text("sha256").notNull(),
+  createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+});
+
+export const directions = pgTable("studio_directions", {
+  id: text("id").primaryKey(),
+  ownerEmail: text("owner_email").notNull(),
+  projectId: text("project_id"),
+  prompt: text("prompt").notNull(),
+  referenceIdsJson: text("reference_ids_json").notNull().default("[]"),
+  directionJson: text("direction_json").notNull(),
+  status: text("status").notNull().default("ready"),
+  currentPhase: text("current_phase").notNull().default("ready"),
+  previousPhase: text("previous_phase"),
+  phaseStartedAt: text("phase_started_at"),
+  providerRequestStarted: boolean("provider_request_started").notNull().default(false),
+  error: text("error"),
+  retryable: boolean("retryable").notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+  updatedAt: text("updated_at").notNull().default(sql`NOW()::TEXT`),
+});
+
+export const jobs = pgTable(
+  "studio_jobs",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    projectId: text("project_id"),
+    directionId: text("direction_id").notNull(),
+    providerJobId: text("provider_job_id").notNull(),
+    pollingUrl: text("polling_url").notNull(),
+    status: text("status").notNull(),
+    model: text("model").notNull(),
+    maxCostUsd: text("max_cost_usd").notNull(),
+    actualCostUsd: text("actual_cost_usd"),
+    requestJson: text("request_json").notNull(),
+    responseJson: text("response_json").notNull(),
+    outputObjectKey: text("output_object_key"),
+    outputSha256: text("output_sha256"),
+    error: text("error"),
+    createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+    updatedAt: text("updated_at").notNull().default(sql`NOW()::TEXT`),
+  },
+  (table) => [uniqueIndex("studio_jobs_direction_unique").on(table.directionId)],
+);
+
+export const productionRuns = pgTable(
+  "studio_production_runs",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    projectId: text("project_id").notNull(),
+    directionId: text("direction_id").notNull(),
+    pipelineVersion: text("pipeline_version").notNull().default("studio-v3"),
+    mode: text("mode").notNull().default("studio-cut"),
+    currentStage: text("current_stage").notNull().default("evidence"),
+    status: text("status").notNull().default("awaiting_evidence"),
+    estimatedCostUsd: text("estimated_cost_usd"),
+    approvedCostUsd: text("approved_cost_usd"),
+    actualCostUsd: text("actual_cost_usd").notNull().default("0"),
+    error: text("error"),
+    createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+    updatedAt: text("updated_at").notNull().default(sql`NOW()::TEXT`),
+  },
+  (table) => [uniqueIndex("studio_production_runs_direction_unique").on(table.directionId)],
+);
+
+export const productionArtifacts = pgTable(
+  "studio_production_artifacts",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    projectId: text("project_id").notNull(),
+    directionId: text("direction_id").notNull(),
+    runId: text("run_id").notNull(),
+    stage: text("stage").notNull(),
+    kind: text("kind").notNull(),
+    shotId: text("shot_id"),
+    label: text("label").notNull(),
+    status: text("status").notNull().default("planned"),
+    approvalStatus: text("approval_status").notNull().default("pending"),
+    orderIndex: integer("order_index").notNull().default(0),
+    objectKey: text("object_key"),
+    mimeType: text("mime_type"),
+    model: text("model"),
+    prompt: text("prompt"),
+    metadataJson: text("metadata_json").notNull().default("{}"),
+    estimatedCostUsd: text("estimated_cost_usd"),
+    actualCostUsd: text("actual_cost_usd"),
+    error: text("error"),
+    approvedAt: text("approved_at"),
+    createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+    updatedAt: text("updated_at").notNull().default(sql`NOW()::TEXT`),
+  },
+  (table) => [
+    uniqueIndex("studio_production_artifact_slot_unique").on(
+      table.runId,
+      table.stage,
+      table.kind,
+      table.shotId,
+      table.orderIndex,
+    ),
+  ],
+);
+
+export const productionTasks = pgTable(
+  "studio_production_tasks",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    projectId: text("project_id").notNull(),
+    directionId: text("direction_id").notNull(),
+    runId: text("run_id").notNull(),
+    artifactId: text("artifact_id").notNull(),
+    providerJobId: text("provider_job_id").notNull(),
+    pollingUrl: text("polling_url").notNull(),
+    status: text("status").notNull(),
+    model: text("model").notNull(),
+    maxCostUsd: text("max_cost_usd").notNull(),
+    actualCostUsd: text("actual_cost_usd"),
+    requestJson: text("request_json").notNull(),
+    responseJson: text("response_json").notNull().default("{}"),
+    error: text("error"),
+    createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+    updatedAt: text("updated_at").notNull().default(sql`NOW()::TEXT`),
+  },
+  (table) => [index("studio_production_tasks_artifact_index").on(table.artifactId)],
+);
+
+export const productionNodes = pgTable(
+  "studio_production_nodes",
+  {
+    id: text("id").primaryKey(),
+    ownerEmail: text("owner_email").notNull(),
+    projectId: text("project_id").notNull(),
+    runId: text("run_id").notNull(),
+    parentId: text("parent_id"),
+    level: text("level").notNull(),
+    stableKey: text("stable_key").notNull(),
+    title: text("title").notNull(),
+    orderIndex: integer("order_index").notNull().default(0),
+    startMs: integer("start_ms"),
+    durationMs: integer("duration_ms"),
+    stateJson: text("state_json").notNull().default("{}"),
+    continuityJson: text("continuity_json").notNull().default("{}"),
+    createdAt: text("created_at").notNull().default(sql`NOW()::TEXT`),
+    updatedAt: text("updated_at").notNull().default(sql`NOW()::TEXT`),
+  },
+  (table) => [
+    uniqueIndex("studio_production_node_key_unique").on(table.runId, table.stableKey),
+    index("studio_production_node_parent_index").on(table.parentId),
+  ],
+);
