@@ -20,27 +20,25 @@ type Bucket = {
   delete(key: string): Promise<void>;
 };
 
+function blobUrlFromKey(key: string): string {
+  const storeId = process.env.BLOB_STORE_ID;
+  if (!storeId) throw new Error("BLOB_STORE_ID is not configured.");
+  return `https://${storeId}.blob.vercel-storage.com/${key}`;
+}
+
 class VercelBlobBucket implements Bucket {
   async get(key: string, options?: { range?: { offset: number; length: number } }): Promise<StoredObject | null> {
+    const url = blobUrlFromKey(key);
     try {
-      const response = await fetch(key);
-      if (!response.ok) return null;
-
-      let body = response.body;
-      if (options?.range && body) {
-        const reader = body.getReader();
-        const bytes = await reader.read();
-        const sliced = new Uint8Array(bytes.value.buffer, options.range.offset, options.range.length);
-        body = new ReadableStream({
-          start(controller) {
-            controller.enqueue(sliced);
-            controller.close();
-          },
-        });
+      const headers: Record<string, string> = {};
+      if (options?.range) {
+        headers["Range"] = `bytes=${options.range.offset}-${options.range.offset + options.range.length - 1}`;
       }
+      const response = await fetch(url, { headers });
+      if (!response.ok && response.status !== 206) return null;
 
       return {
-        body: body!,
+        body: response.body!,
         httpEtag: response.headers.get("etag") ?? undefined,
         size: parseInt(response.headers.get("content-length") ?? "0", 10) || undefined,
         httpMetadata: {
@@ -58,9 +56,7 @@ class VercelBlobBucket implements Bucket {
       return {
         httpEtag: info.url,
         size: info.size,
-        httpMetadata: {
-          contentType: info.contentType,
-        },
+        httpMetadata: { contentType: info.contentType },
       };
     } catch {
       return null;
@@ -80,7 +76,10 @@ class VercelBlobBucket implements Bucket {
   }
 
   async delete(key: string): Promise<void> {
-    await del(key);
+    try {
+      const url = blobUrlFromKey(key);
+      await del(url);
+    } catch { /* ignore */ }
   }
 }
 
