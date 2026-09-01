@@ -93,11 +93,17 @@ function normalizedCost(value: number | string | undefined): number | null {
 function endpointImageCost(endpoint: ImageEndpointRecord, referencesPerImage: number): number | null {
   const lines = endpoint.pricing ?? [];
   const output = lines
-    .filter((line) => line.billable === "output_image" && line.unit === "image")
+    .filter((line) => (line.billable === "output_image" || line.billable === "image" || (line.unit === "image" && !line.billable)) && line.unit === "image")
     .filter((line) => !line.variant || line.variant.toLowerCase() === IMAGE_RESOLUTION.toLowerCase())
     .map((line) => normalizedCost(line.cost_usd))
     .find((cost): cost is number => cost !== null);
-  if (output === undefined) return null;
+  if (output === undefined) {
+    const anyImageCost = lines
+      .filter((line) => normalizedCost(line.cost_usd) !== null)
+      .map((line) => normalizedCost(line.cost_usd))
+      .find((cost): cost is number => cost !== null);
+    return anyImageCost ?? null;
+  }
   const referenceLine = lines
     .filter((line) => ["input_reference", "input_image"].includes(line.billable ?? "") && line.unit === "image")
     .map((line) => normalizedCost(line.cost_usd))
