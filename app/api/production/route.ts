@@ -592,7 +592,6 @@ async function generateNextImage(production: OwnedProduction, apiKey: string): P
     aspect_ratio: IMAGE_ASPECT_RATIO,
     n: 1,
     input_references: inputReferences,
-    provider: { only: [route.providerTag], allow_fallbacks: false },
   };
   let response: Response;
   let responseText: string;
