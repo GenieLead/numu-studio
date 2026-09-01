@@ -1,3 +1,5 @@
+export const maxDuration = 120;
+
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { apiUserEmail, unauthorized } from "@/lib/api-auth";
 import { getDb } from "@/db";
