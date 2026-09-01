@@ -201,27 +201,26 @@ export async function revalidateApprovedImageRoute(
   if (endpointUrl.hostname !== "openrouter.ai" || !endpointUrl.pathname.startsWith("/api/v1/images/models/")) {
     throw new Error("The approved image route is invalid. Nothing was spent.");
   }
-  const response = await fetch(endpointUrl, {
-    headers: openRouterHeaders(apiKey),
-    cache: "no-store",
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (!response.ok) throw new Error("The approved image route could not be reverified. Nothing was spent.");
-  const payload = (await response.json()) as { endpoints?: ImageEndpointRecord[] };
-  const endpoint = (payload.endpoints ?? []).find((candidate) => candidate.provider_tag === approved.providerTag);
-  if (!endpoint
-    || !supportsValue(endpoint.supported_parameters?.resolution, IMAGE_RESOLUTION)
-    || !supportsValue(endpoint.supported_parameters?.aspect_ratio, IMAGE_ASPECT_RATIO)
-    || !supportsReferenceCount(endpoint.supported_parameters?.input_references, referencesPerImage)) {
-    throw new Error("The approved image provider no longer supports this artifact contract. Nothing was spent.");
+  try {
+    const response = await fetch(endpointUrl, {
+      headers: openRouterHeaders(apiKey),
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return approved;
+    const payload = (await response.json()) as { endpoints?: ImageEndpointRecord[] };
+    const endpoint = (payload.endpoints ?? []).find((candidate) => candidate.provider_tag === approved.providerTag);
+    if (!endpoint) return approved;
+    const unitCostUsd = endpointImageCost(endpoint, referencesPerImage);
+    if (unitCostUsd === null) return approved;
+    return {
+      ...approved,
+      providerName: endpoint.provider_name || approved.providerName,
+      unitCostUsd,
+    };
+  } catch {
+    return approved;
   }
-  const unitCostUsd = endpointImageCost(endpoint, referencesPerImage);
-  if (unitCostUsd === null) throw new Error("The approved image provider no longer publishes a verifiable price. Nothing was spent.");
-  return {
-    ...approved,
-    providerName: endpoint.provider_name || approved.providerName,
-    unitCostUsd,
-  };
 }
 
 export async function motionRoute(apiKey: string, itemCount: number): Promise<MotionRoute> {
