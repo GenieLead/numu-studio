@@ -21,6 +21,11 @@ type Bucket = {
   listByPrefix(prefix: string): Promise<Array<{ key: string; url: string; size: number }>>;
 };
 
+function blobAuthHeaders(): Record<string, string> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 class VercelBlobBucket implements Bucket {
   async get(key: string, options?: { range?: { offset: number; length: number } }): Promise<StoredObject | null> {
     try {
@@ -33,7 +38,7 @@ class VercelBlobBucket implements Bucket {
         url = `https://${storeId}.blob.vercel-storage.com/${key}`;
       }
 
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = { ...blobAuthHeaders() };
       if (options?.range) {
         headers["Range"] = `bytes=${options.range.offset}-${options.range.offset + options.range.length - 1}`;
       }
