@@ -2401,7 +2401,6 @@ function CreativeDecisionsPanel({ decisions, onChoose }: { decisions: CreativeDe
                   <button
                     key={option}
                     type="button"
-                    disabled={selected}
                     aria-pressed={selected}
                     onClick={() => onChoose(decision, option)}
                     className={`rounded-full border px-2.5 py-1.5 text-[9px] transition ${selected ? "border-primary/35 bg-primary/14 text-primary" : option === decision.recommended ? "border-primary/18 bg-primary/[0.06] text-primary/80 hover:bg-primary/10" : "border-white/9 bg-white/3 text-[#aaa9a1] hover:border-white/18"}`}
@@ -2480,7 +2479,7 @@ function DirectorReply({
   const departments = departmentsFor(card);
   const referencePlan = referencePlanFor(card, references);
   const intelligence = intelligenceFor(card);
-  const openDecisionCount = (card.creativeDecisions ?? []).filter((decision) => decision.status === "open").length;
+  const openDecisionCount = (card.creativeDecisions ?? []).filter((decision) => !decision.answer).length;
   const approvalStage: ApprovalStage = productionLocked ? "complete" : card.approvalStage ?? "concept";
   const approved = new Set(card.approvedSections ?? []);
   const referenceAnalysisRequired = intelligence.status !== "analyzed" && references.some((reference) =>
@@ -2489,7 +2488,7 @@ function DirectorReply({
   const legacyConcept = card.analysisProvenance?.contractVersion !== DIRECTOR_CONTRACT_VERSION;
   const conceptV2Ready = card.analysisProvenance?.contractVersion === DIRECTOR_CONTRACT_VERSION && card.conceptQuality?.status === "passed" && Boolean(card.conceptStrategy);
   const stepIndex = approvalStage === "concept" ? 0 : approvalStage === "language" ? 1 : approvalStage === "shots" ? 2 : approvalStage === "sound" ? 3 : 4;
-  const visibleRevisionPlan = approvalStage !== "concept" && card.revisionPlan?.target === "Concept strategy only" ? null : card.revisionPlan;
+  const visibleRevisionPlan = approvalStage === "complete" ? null : approvalStage !== "concept" && card.revisionPlan?.target === "Concept strategy only" ? null : card.revisionPlan;
   return (
     <div className="flex gap-3">
       <HaykAvatar />
