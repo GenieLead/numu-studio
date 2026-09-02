@@ -970,6 +970,14 @@ async function regenerateShot(production: OwnedProduction, shotId: string): Prom
       }).where(eq(productionArtifacts.id, artifact.id));
     }
   }
+  const [dirRow] = await db.select().from(directions).where(eq(directions.id, production.run.directionId)).limit(1);
+  if (dirRow) {
+    const card = JSON.parse(dirRow.directionJson) as { approvalStage?: string; lockedAt?: string | null; revisionPlan?: unknown };
+    if (card.revisionPlan || card.approvalStage !== "complete" || !card.lockedAt) {
+      const lockedCard = { ...card, approvalStage: "complete" as const, lockedAt: now, revisionPlan: null };
+      await db.update(directions).set({ directionJson: JSON.stringify(lockedCard), updatedAt: now }).where(eq(directions.id, dirRow.id));
+    }
+  }
   await db.update(productionRuns).set({
     status: "stage_ready",
     error: null,
