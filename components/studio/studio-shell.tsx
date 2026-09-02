@@ -1241,6 +1241,48 @@ export function StudioShell({ userName }: { userName: string }) {
   const submitBrief = async (overrideIdea?: string, displayIdea?: string) => {
     const idea = (overrideIdea ?? prompt).trim();
     if (!idea || busy || !activeProjectId || submitInFlightRef.current) return;
+
+    if (taggedArtifacts.size > 0 && production && direction) {
+      submitInFlightRef.current = true;
+      const turnId = crypto.randomUUID();
+      setMessages((current) => [...current, { id: turnId, text: displayIdea ?? idea, references: [], status: "sending" }]);
+      setBusy(true);
+      setWorkingPhase("regenerating");
+      setProductionAction("Regenerating tagged frames with new prompt");
+      setProductionError(null);
+      setProductionElapsedSeconds(0);
+      try {
+        const response = await fetch("/api/production", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: activeProjectId,
+            directionId: direction.id,
+            action: "regenerate_with_prompt",
+            artifactIds: Array.from(taggedArtifacts),
+            prompt: idea,
+          }),
+        });
+        const payload = await responsePayload<{ production?: ProductionRunPublic }>(response);
+        if (!response.ok || !payload.production) throw new Error(payload.error ?? "Could not regenerate frames.");
+        setProduction(payload.production);
+        setTaggedArtifacts(new Set());
+        if (!overrideIdea) setPrompt("");
+        setMessages((current) => current.map((turn) => turn.id === turnId ? { ...turn, status: "complete" } : turn));
+        setBusy(false);
+        setWorkingPhase(null);
+        setProductionAction(null);
+      } catch (caught) {
+        setBusy(false);
+        setWorkingPhase(null);
+        setProductionAction(null);
+        setProductionError(caught instanceof Error ? caught.message : "Frame regeneration failed.");
+        setMessages((current) => current.map((turn) => turn.id === turnId ? { ...turn, status: "failed" } : turn));
+      } finally {
+        submitInFlightRef.current = false;
+      }
+      return;
+    }
     submitInFlightRef.current = true;
     let requestAccepted = false;
     let acceptedTraceId: string | null = null;
@@ -2753,40 +2795,40 @@ function ProductionStudio({
       {action && <ProductionWorking action={assemblyProgress ?? action} elapsedSeconds={elapsedSeconds} remainingSeconds={remaining} />}
 
       <div className="px-5 py-6 sm:px-7">
-        {stage === "evidence" && <div><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
+        {(selectedStage ?? stage) === "evidence" && <div><EvidenceGate card={card} artifacts={production.artifacts.filter((a) => a.stage === "evidence")} ready={production.artifacts.filter((a) => a.stage === "evidence").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
 
-        {(stage === "identity" || stage === "storyboard") && (
+        {((selectedStage ?? stage) === "identity" || (selectedStage ?? stage) === "storyboard") && (
           <div>
            <VisualGenerationGate
-            stage={stage}
-            artifacts={stageArtifacts}
+            stage={(selectedStage ?? stage) as "identity" | "storyboard"}
+            artifacts={production.artifacts.filter((a) => a.stage === (selectedStage ?? stage))}
             quote={production.quote}
             authorizedMaxCostUsd={production.approvedCostUsd}
-            ready={stageReady}
+            ready={production.artifacts.filter((a) => a.stage === (selectedStage ?? stage)).filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")}
             busy={Boolean(action)}
             onGenerate={onGenerateStage}
-            onApprove={() => onApproveStage(stage)}
+            onApprove={() => onApproveStage(selectedStage ?? stage)}
             taggedArtifacts={taggedArtifacts}
             onTagArtifact={onTagArtifact}
           />
           </div>
         )}
 
-        {stage === "motion" && (
-          <div><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
+        {(selectedStage ?? stage) === "motion" && (
+          <div><MotionGate artifacts={production.artifacts.filter((a) => a.stage === "motion")} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={production.artifacts.filter((a) => a.stage === "motion").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
         )}
 
-        {stage === "voice" && <div><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
+        {(selectedStage ?? stage) === "voice" && <div><VoiceGate artifacts={production.artifacts.filter((a) => a.stage === "voice")} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
 
-        {stage === "score" && <div><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
+        {(selectedStage ?? stage) === "score" && <div><ScoreGate artifacts={production.artifacts.filter((a) => a.stage === "score")} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={production.artifacts.filter((a) => a.stage === "score").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
 
-        {stage === "stems" && <div><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>}
+        {(selectedStage ?? stage) === "stems" && <div><StemsGate artifacts={production.artifacts.filter((a) => a.stage === "stems")} mediaWorker={mediaWorker} /></div>}
 
-        {stage === "conform" && <div><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
+        {(selectedStage ?? stage) === "conform" && <div><AssemblyGate artifacts={production.artifacts} master={master} ready={production.artifacts.filter((a) => a.stage === "conform").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
 
-        {stage === "qc" && <div><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
+        {(selectedStage ?? stage) === "qc" && <div><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
 
-        {stage === "master" && <div><MasterGate production={production} master={master} report={report} /></div>}
+        {(selectedStage ?? stage) === "master" && <div><MasterGate production={production} master={master} report={report} /></div>}
 
         {failedArtifacts.length > 0 && (
           <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/[0.055] p-4">

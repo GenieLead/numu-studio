@@ -3,7 +3,7 @@ export const maxDuration = 120;
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { apiUserEmail, unauthorized } from "@/lib/api-auth";
 import { getDb } from "@/db";
-import { productionArtifacts, productionRuns, productionTasks } from "@/db/schema";
+import { productionArtifacts, productionRuns, productionTasks, directions } from "@/db/schema";
 import { analyzeMasterQc, analyzeReferenceEvidence } from "@/lib/production-ai";
 import { getOpenRouterKey, openRouterHeaders, sealOpenRouterKey } from "@/lib/openrouter-session";
 import { submitMediaWorkerJob } from "@/lib/media-worker-session";
@@ -1067,6 +1067,9 @@ export async function POST(request: Request) {
       approvedMaxCostUsd?: number;
       frames?: ReferenceEvidenceFrame[];
       artifactId?: string;
+      shotId?: string;
+      artifactIds?: string[];
+      prompt?: string;
     };
     if (!body.projectId || !body.directionId || !body.action) return Response.json({ error: "Production action is incomplete." }, { status: 400 });
     let production = await ensureProduction(ownerEmail, body.projectId, body.directionId);
@@ -1101,6 +1104,53 @@ export async function POST(request: Request) {
         production = await resetFailedArtifact(production, body.artifactId);
       } else if (body.action === "regenerate_shot" && typeof body.shotId === "string") {
         production = await regenerateShot(production, body.shotId);
+      } else if (body.action === "regenerate_with_prompt" && Array.isArray(body.artifactIds) && typeof body.prompt === "string") {
+        const db = getDb();
+        const now = new Date().toISOString();
+        const artifactIds = body.artifactIds.filter((id): id is string => typeof id === "string").slice(0, 12);
+        if (!artifactIds.length) throw new Error("No artifacts selected for regeneration.");
+        const affected = await db.select().from(productionArtifacts).where(and(
+          eq(productionArtifacts.runId, production.run.id),
+          inArray(productionArtifacts.id, artifactIds),
+        ));
+        const shotIdsToReset = new Set<string>();
+        for (const artifact of affected) {
+          if (artifact.status === "completed" || artifact.status === "failed") {
+            shotIdsToReset.add(artifact.shotId ?? "UNKNOWN");
+            await db.update(productionArtifacts).set({
+              status: "planned",
+              approvalStatus: "pending",
+              error: null,
+              objectKey: null,
+              actualCostUsd: null,
+              metadataJson: JSON.stringify({ ...metadata(artifact.metadataJson), regeneratedAt: now, previousStatus: artifact.status, regenerationPrompt: body.prompt }),
+              updatedAt: now,
+            }).where(eq(productionArtifacts.id, artifact.id));
+          }
+        }
+        for (const shotId of shotIdsToReset) {
+          if (shotId && shotId !== "UNKNOWN") {
+            const shotArtifacts = await db.select().from(productionArtifacts).where(and(
+              eq(productionArtifacts.runId, production.run.id),
+              eq(productionArtifacts.shotId, shotId),
+            ));
+            for (const a of shotArtifacts) {
+              if ((a.status === "completed" || a.status === "failed") && !artifactIds.includes(a.id)) {
+                await db.update(productionArtifacts).set({
+                  status: "planned",
+                  approvalStatus: "pending",
+                  error: null,
+                  objectKey: null,
+                  actualCostUsd: null,
+                  metadataJson: JSON.stringify({ ...metadata(a.metadataJson), regeneratedAt: now, previousStatus: a.status }),
+                  updatedAt: now,
+                }).where(eq(productionArtifacts.id, a.id));
+              }
+            }
+          }
+        }
+        await db.update(productionRuns).set({ status: "stage_ready", error: null, updatedAt: now }).where(eq(productionRuns.id, production.run.id));
+        production = await refreshProduction(production);
       } else {
         throw new Error("Unknown or incomplete production action.");
       }
