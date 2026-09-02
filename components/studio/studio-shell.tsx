@@ -778,7 +778,6 @@ export function StudioShell({ userName }: { userName: string }) {
   const [productionLoading, setProductionLoading] = useState(false);
   const [productionAction, setProductionAction] = useState<string | null>(null);
   const [productionError, setProductionError] = useState<string | null>(null);
-  const [selectedTab, setSelectedTab] = useState<string>(stage);
   const [productionElapsedSeconds, setProductionElapsedSeconds] = useState(0);
   const [assemblyProgress, setAssemblyProgress] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -2711,41 +2710,45 @@ function ProductionStudio({
           </div>
           <div className="rounded-xl border border-primary/15 bg-primary/[0.05] px-3 py-2 text-right"><p className="text-[8px] uppercase tracking-[0.14em] text-muted-foreground">Verified spend</p><p className="mt-1 font-mono text-sm text-primary">${production.actualCostUsd.toFixed(2)}</p></div>
         </div>
-        <ProductionTrail current={stage} artifacts={production.artifacts} selectedTab={selectedTab} onSelectTab={setSelectedTab} />
+        <ProductionTrail current={stage} artifacts={production.artifacts} />
         <StudioRouteMap />
       </div>
 
       {action && <ProductionWorking action={assemblyProgress ?? action} elapsedSeconds={elapsedSeconds} remainingSeconds={remaining} />}
 
       <div className="px-5 py-6 sm:px-7">
-        <div hidden={selectedTab !== "evidence"}><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>
+        {stage === "evidence" && <div><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
 
-        <div hidden={selectedTab !== "identity" && selectedTab !== "storyboard"}>
+        {(stage === "identity" || stage === "storyboard") && (
+          <div>
           <VisualGenerationGate
-            stage={selectedTab === "identity" || selectedTab === "storyboard" ? selectedTab : stage}
+            stage={stage}
             artifacts={stageArtifacts}
             quote={production.quote}
             authorizedMaxCostUsd={production.approvedCostUsd}
             ready={stageReady}
             busy={Boolean(action)}
             onGenerate={onGenerateStage}
-            onApprove={() => onApproveStage(selectedTab === "identity" || selectedTab === "storyboard" ? selectedTab : stage)}
+            onApprove={() => onApproveStage(stage)}
           />
-        </div>
+          </div>
+        )}
 
-        <div hidden={selectedTab !== "motion"}><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
+        {stage === "motion" && (
+          <div><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
+        )}
 
-        <div hidden={selectedTab !== "voice"}><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>
+        {stage === "voice" && <div><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
 
-        <div hidden={selectedTab !== "score"}><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>
+        {stage === "score" && <div><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
 
-        <div hidden={selectedTab !== "stems"}><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>
+        {stage === "stems" && <div><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>}
 
-        <div hidden={selectedTab !== "conform"}><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>
+        {stage === "conform" && <div><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
 
-        <div hidden={selectedTab !== "qc"}><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>
+        {stage === "qc" && <div><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
 
-        <div hidden={selectedTab !== "master"}><MasterGate production={production} master={master} report={report} /></div>
+        {stage === "master" && <div><MasterGate production={production} master={master} report={report} /></div>}
 
         {failedArtifacts.length > 0 && (
           <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/[0.055] p-4">
@@ -2783,7 +2786,7 @@ function StudioRouteMap() {
   );
 }
 
-function ProductionTrail({ current, artifacts, selectedTab, onSelectTab }: { current: ProductionStage; artifacts: ProductionArtifactPublic[]; selectedTab: string; onSelectTab: (tab: string) => void }) {
+function ProductionTrail({ current, artifacts }: { current: ProductionStage; artifacts: ProductionArtifactPublic[] }) {
   const stages: Array<{ id: ProductionStage; label: string }> = [
     { id: "evidence", label: "Evidence" },
     { id: "identity", label: "Identity" },
@@ -2797,7 +2800,7 @@ function ProductionTrail({ current, artifacts, selectedTab, onSelectTab }: { cur
     { id: "master", label: "Master" },
   ];
   const currentIndex = stages.findIndex((item) => item.id === current);
-  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const selected = item.id === selectedTab; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <button key={item.id} type="button" onClick={() => onSelectTab(item.id)} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] transition-all ${selected ? "border-primary/40 bg-primary/15 text-primary ring-1 ring-primary/30 scale-105" : complete ? "border-primary/20 bg-primary/8 text-primary hover:bg-primary/15" : working ? "border-white/18 bg-white/6 text-foreground hover:bg-white/10" : "border-white/7 text-muted-foreground/50"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</button>; })}</div>;
+  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <div key={item.id} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] ${complete ? "border-primary/20 bg-primary/8 text-primary" : working ? "border-white/18 bg-white/6 text-foreground" : "border-white/7 text-muted-foreground/50"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</div>; })}</div>;
 }
 
 function ProductionWorking({ action, elapsedSeconds, remainingSeconds }: { action: string; elapsedSeconds: number; remainingSeconds: number }) {
