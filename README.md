@@ -38,3 +38,4 @@ The application is managed by ChatGPT Sites and runs on Vinext/Cloudflare Worker
 Bindings are declared in `.openai/hosting.json`. This project intentionally does not use `wrangler.jsonc`.
 
 Never commit API keys, session cookies, worker secrets, signed grant URLs, or generated private media URLs.
+// redeploy
