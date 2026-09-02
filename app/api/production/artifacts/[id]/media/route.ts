@@ -38,10 +38,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (range === "invalid") return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
   const object = await bucket.get(artifact.objectKey, range ? { range } : undefined);
   if (!object) return new Response("Production artifact is missing.", { status: 404 });
-  const filename = `${artifact.shotId ?? artifact.kind}-${artifact.id}`;
+  const mimeType = artifact.mimeType || object.httpMetadata?.contentType || head.httpMetadata?.contentType || "application/octet-stream";
+  const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("webm") ? "webm" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : mimeType.includes("wav") ? "wav" : "bin";
+  const filename = `${artifact.shotId ?? artifact.kind}-${artifact.id}.${ext}`;
   const headers: Record<string, string> = {
-    "Content-Type": artifact.mimeType || object.httpMetadata?.contentType || head.httpMetadata?.contentType || "application/octet-stream",
-    "Content-Disposition": `inline; filename="${filename}"`,
+    "Content-Type": mimeType,
+    "Content-Disposition": `attachment; filename="${filename}"`,
     "Cache-Control": "private, no-store",
     "Accept-Ranges": "bytes",
     "Content-Length": String(range?.length ?? size),

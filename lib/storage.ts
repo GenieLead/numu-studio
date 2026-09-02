@@ -84,6 +84,7 @@ class VercelBlobBucket implements Bucket {
     const blob = await put(key, value, {
       access: "private",
       contentType: options?.httpMetadata?.contentType,
+      allowOverwrite: true,
     });
     return blob;
   }
