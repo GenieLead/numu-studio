@@ -2717,38 +2717,38 @@ function ProductionStudio({
       {action && <ProductionWorking action={assemblyProgress ?? action} elapsedSeconds={elapsedSeconds} remainingSeconds={remaining} />}
 
       <div className="px-5 py-6 sm:px-7">
-        {stage === "evidence" && <div id="section-evidence"><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
+        {(stage === "evidence" || production.artifacts.some(a => a.stage === "evidence" && a.status === "completed")) && <div id="section-evidence"><EvidenceGate card={card} artifacts={production.artifacts.filter(a => a.stage === "evidence")} ready={stage === "evidence" ? stageReady : true} busy={stage === "evidence" && Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
 
-        {(stage === "identity" || stage === "storyboard") && (
+        {(stage === "identity" || stage === "storyboard" || production.artifacts.some(a => (a.stage === "identity" || a.stage === "storyboard") && a.status === "completed")) && (
           <div id="section-identity">
           <VisualGenerationGate
-            stage={stage}
-            artifacts={stageArtifacts}
+            stage={stage === "identity" || stage === "storyboard" ? stage : "identity"}
+            artifacts={production.artifacts.filter(a => a.stage === "identity" || a.stage === "storyboard")}
             quote={production.quote}
             authorizedMaxCostUsd={production.approvedCostUsd}
-            ready={stageReady}
-            busy={Boolean(action)}
+            ready={stage === "identity" || stage === "storyboard" ? stageReady : true}
+            busy={(stage === "identity" || stage === "storyboard") && Boolean(action)}
             onGenerate={onGenerateStage}
-            onApprove={() => onApproveStage(stage)}
+            onApprove={() => onApproveStage(stage === "identity" || stage === "storyboard" ? stage : "identity")}
           />
           </div>
         )}
 
-        {stage === "motion" && (
-          <div id="section-motion"><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
+        {(stage === "motion" || production.artifacts.some(a => a.stage === "motion" && a.status === "completed")) && (
+          <div id="section-motion"><MotionGate artifacts={production.artifacts.filter(a => a.stage === "motion")} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stage === "motion" ? stageReady : true} busy={stage === "motion" && Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
         )}
 
-        {stage === "voice" && <div id="section-voice"><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
+        {(stage === "voice" || production.artifacts.some(a => a.stage === "voice" && a.status === "completed")) && <div id="section-voice"><VoiceGate artifacts={production.artifacts.filter(a => a.stage === "voice")} busy={stage === "voice" && Boolean(action)} onSkip={onSkipVoice} /></div>}
 
-        {stage === "score" && <div id="section-score"><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
+        {(stage === "score" || production.artifacts.some(a => a.stage === "score" && a.status === "completed")) && <div id="section-score"><ScoreGate artifacts={production.artifacts.filter(a => a.stage === "score")} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stage === "score" ? stageReady : true} busy={stage === "score" && Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
 
-        {stage === "stems" && <div id="section-stems"><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>}
+        {(stage === "stems" || production.artifacts.some(a => a.stage === "stems" && a.status === "completed")) && <div id="section-stems"><StemsGate artifacts={production.artifacts.filter(a => a.stage === "stems")} mediaWorker={mediaWorker} /></div>}
 
-        {stage === "conform" && <div id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /><WorkerCapabilityPanel worker={mediaWorker} context="finish" /></div>}
+        {(stage === "conform" || production.artifacts.some(a => a.stage === "conform" && a.status === "completed")) && <div id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={stage === "conform" ? stageReady : true} busy={stage === "conform" && Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
 
-        {stage === "qc" && <div id="section-qc"><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} /></div>}
+        {(stage === "qc" || (report && report.status === "completed")) && <div id="section-qc"><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
 
-        {stage === "master" && <div id="section-master"><MasterGate production={production} master={master} report={report} /></div>}
+        {(stage === "master") && <div id="section-master"><MasterGate production={production} master={master} report={report} /></div>}
 
         {failedArtifacts.length > 0 && (
           <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/[0.055] p-4">
@@ -2864,10 +2864,10 @@ function AssemblyGate({ artifacts, master, ready, busy, deliverySeconds, onAssem
   return <div><GateHeading number="5" title="Final test-video assembly" subtitle={`All approved source shots and their synchronized audio are preloaded, then trimmed to the locked ${deliverySeconds}s edit decision list in the browser. The result is a complete downloadable test video; a broadcast/cinema ProRes master still requires the optional professional media worker.`} badge="$0 deterministic assembly" /><ArtifactGrid artifacts={master ? [master] : shots} />{!ready && <Button disabled={busy} onClick={onAssemble} className="mt-5 rounded-full bg-primary text-primary-foreground"><Scissors className="size-3.5" /> Assemble {assemblyDuration}s final test video</Button>}{ready && <div className="mt-4 flex flex-wrap items-center gap-3">{master && <Button asChild className="rounded-full bg-primary text-primary-foreground"><a href={`/api/production/artifacts/${master.id}/media`} target="_blank" rel="noopener noreferrer"><Download className="size-3.5" /> Download test video</a></Button>}<StageApproval label="Approve final test video" hint="Watch the complete video. Approval sends this exact file—not a prompt—to continuity QC." disabled={busy} onApprove={onApprove} /></div>}</div>;
 }
 
-function QcGate({ report, busy, onRun }: { report: ProductionArtifactPublic | undefined; busy: boolean; onRun: () => void }) {
+function QcGate({ report, busy, onRun, master }: { report: ProductionArtifactPublic | undefined; busy: boolean; onRun: () => void; master?: ProductionArtifactPublic }) {
   const gates = Array.isArray(report?.metadata.gates) ? report.metadata.gates as Array<Record<string, unknown>> : [];
   const blocked = report?.approvalStatus === "blocked";
-  return <div><GateHeading number="6" title="Continuity hard gate" subtitle="Gemini watches the assembled final test video against the protected product and character authorities. Failed gates identify only the shots that need revision. This is one low-cost multimodal analysis call; actual token cost is recorded afterward." badge="multimodal final-video QC" />{report?.status === "completed" ? <div className={`mt-5 rounded-2xl border p-4 ${blocked ? "border-destructive/25 bg-destructive/[0.04]" : "border-primary/20 bg-primary/[0.04]"}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{String(report.metadata.summary ?? "QC completed")}</p><Badge variant="outline" className={blocked ? "border-destructive/25 text-destructive" : "border-primary/25 text-primary"}>{String(report.metadata.verdict ?? "review")}</Badge></div><div className="mt-4 space-y-2">{gates.map((gate, index) => <div key={index} className="rounded-xl border border-white/7 bg-black/15 p-3"><div className="flex justify-between gap-2 text-[10px]"><span>{String(gate.name ?? "QC gate")}</span><span className={gate.result === "fail" ? "text-destructive" : gate.result === "pass" ? "text-primary" : "text-[#d9a36c]"}>{String(gate.result ?? "review")}</span></div><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{String(gate.note ?? "")}</p></div>)}</div>{blocked && <p className="mt-4 text-[10px] text-destructive">Blocking shots: {Array.isArray(report.metadata.blockingShotIds) ? report.metadata.blockingShotIds.join(" + ") : "see report"}. Select only those shots in chat for a surgical revision.</p>}</div> : <Button disabled={busy} onClick={onRun} className="mt-5 rounded-full bg-primary text-primary-foreground"><ShieldCheck className="size-3.5" /> Run continuity QC on final test video</Button>}</div>;
+  return <div><GateHeading number="6" title="Continuity hard gate" subtitle="Gemini watches the assembled final test video against the protected product and character authorities. Failed gates identify only the shots that need revision. This is one low-cost multimodal analysis call; actual token cost is recorded afterward." badge="multimodal final-video QC" />{master?.mediaUrl && <div className="mt-5"><video src={master.mediaUrl} controls playsInline preload="metadata" className="aspect-[9/16] max-h-[600px] w-full max-w-sm rounded-2xl border border-white/10 bg-black object-contain" />{master.mediaUrl && <Button asChild className="mt-3 rounded-full bg-primary text-primary-foreground"><a href={`/api/production/artifacts/${master.id}/media`} target="_blank" rel="noreferrer"><Download className="size-3.5" /> Download video</a></Button>}</div>}{report?.status === "completed" ? <div className={`mt-5 rounded-2xl border p-4 ${blocked ? "border-destructive/25 bg-destructive/[0.04]" : "border-primary/20 bg-primary/[0.04]"}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{String(report.metadata.summary ?? "QC completed")}</p><Badge variant="outline" className={blocked ? "border-destructive/25 text-destructive" : "border-primary/25 text-primary"}>{String(report.metadata.verdict ?? "review")}</Badge></div><div className="mt-4 space-y-2">{gates.map((gate, index) => <div key={index} className="rounded-xl border border-white/7 bg-black/15 p-3"><div className="flex justify-between gap-2 text-[10px]"><span>{String(gate.name ?? "QC gate")}</span><span className={gate.result === "fail" ? "text-destructive" : gate.result === "pass" ? "text-primary" : "text-[#d9a36c]"}>{String(gate.result ?? "review")}</span></div><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{String(gate.note ?? "")}</p></div>)}</div>{blocked && <p className="mt-4 text-[10px] text-destructive">Blocking shots: {Array.isArray(report.metadata.blockingShotIds) ? report.metadata.blockingShotIds.join(" + ") : "see report"}. Select only those shots in chat for a surgical revision.</p>}</div> : <Button disabled={busy} onClick={onRun} className="mt-5 rounded-full bg-primary text-primary-foreground"><ShieldCheck className="size-3.5" /> Run continuity QC on final test video</Button>}</div>;
 }
 
 function MasterGate({ production, master, report }: { production: ProductionRunPublic; master: ProductionArtifactPublic | undefined; report: ProductionArtifactPublic | undefined }) {
