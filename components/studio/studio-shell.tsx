@@ -2717,38 +2717,39 @@ function ProductionStudio({
       {action && <ProductionWorking action={assemblyProgress ?? action} elapsedSeconds={elapsedSeconds} remainingSeconds={remaining} />}
 
       <div className="px-5 py-6 sm:px-7">
-        {stage === "evidence" && <div id="section-evidence"><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
+        {(() => {
+          const stagesDone = new Set(production.artifacts.map(a => a.stage));
+          const parts: React.ReactNode[] = [];
+          
+          if (stagesDone.has("evidence") || stage === "evidence")
+            parts.push(<div key="evidence" id="section-evidence"><EvidenceGate card={card} artifacts={production.artifacts.filter(a => a.stage === "evidence")} ready={stage === "evidence" ? stageReady : true} busy={stage === "evidence" && Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>);
 
-        {(stage === "identity" || stage === "storyboard") && (
-          <div id="section-identity">
-          <VisualGenerationGate
-            stage={stage}
-            artifacts={stageArtifacts}
-            quote={production.quote}
-            authorizedMaxCostUsd={production.approvedCostUsd}
-            ready={stageReady}
-            busy={Boolean(action)}
-            onGenerate={onGenerateStage}
-            onApprove={() => onApproveStage(stage)}
-          />
-          </div>
-        )}
+          if (stagesDone.has("identity") || stagesDone.has("storyboard") || stage === "identity" || stage === "storyboard")
+            parts.push(<div key="identity" id="section-identity"><VisualGenerationGate stage={stage === "identity" || stage === "storyboard" ? stage : "identity"} artifacts={production.artifacts.filter(a => a.stage === "identity" || a.stage === "storyboard")} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stage === "identity" || stage === "storyboard" ? stageReady : true} busy={(stage === "identity" || stage === "storyboard") && Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage(stage === "identity" || stage === "storyboard" ? stage : "identity")} /></div>);
 
-        {stage === "motion" && (
-          <div id="section-motion"><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
-        )}
+          if (stagesDone.has("motion") || stage === "motion")
+            parts.push(<div key="motion" id="section-motion"><MotionGate artifacts={production.artifacts.filter(a => a.stage === "motion")} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stage === "motion" ? stageReady : true} busy={stage === "motion" && Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>);
 
-        {stage === "voice" && <div id="section-voice"><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
+          if (stagesDone.has("voice") || stage === "voice")
+            parts.push(<div key="voice" id="section-voice"><VoiceGate artifacts={production.artifacts.filter(a => a.stage === "voice")} busy={stage === "voice" && Boolean(action)} onSkip={onSkipVoice} /></div>);
 
-        {stage === "score" && <div id="section-score"><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
+          if (stagesDone.has("score") || stage === "score")
+            parts.push(<div key="score" id="section-score"><ScoreGate artifacts={production.artifacts.filter(a => a.stage === "score")} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stage === "score" ? stageReady : true} busy={stage === "score" && Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>);
 
-        {stage === "stems" && <div id="section-stems"><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>}
+          if (stagesDone.has("stems") || stage === "stems")
+            parts.push(<div key="stems" id="section-stems"><StemsGate artifacts={production.artifacts.filter(a => a.stage === "stems")} mediaWorker={mediaWorker} /></div>);
 
-        {stage === "conform" && <div id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
+          if (stagesDone.has("conform") || stage === "conform")
+            parts.push(<div key="conform" id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={stage === "conform" ? stageReady : true} busy={stage === "conform" && Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>);
 
-        {stage === "qc" && <div id="section-qc"><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
+          if (report?.status === "completed" || stage === "qc")
+            parts.push(<div key="qc" id="section-qc"><QcGate report={report} busy={stage === "qc" && Boolean(action)} onRun={onRunQc} master={master} /></div>);
 
-        {stage === "master" && <div id="section-master"><MasterGate production={production} master={master} report={report} /></div>}
+          if (stage === "master")
+            parts.push(<div key="master" id="section-master"><MasterGate production={production} master={master} report={report} /></div>);
+
+          return parts;
+        })()}
 
         {failedArtifacts.length > 0 && (
           <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/[0.055] p-4">
