@@ -122,7 +122,7 @@ export async function ownedDirection(
   )).limit(1);
   if (!direction) throw new Error("Locked direction not found.");
   if (direction.status !== "ready") throw new Error("The director operation is not ready for production.");
-  let card = parseDirectionCard(direction.directionJson);
+  const card = parseDirectionCard(direction.directionJson);
   const bindings = parseBindings(direction.referenceIdsJson);
   const ids = [...new Set(bindings.map((binding) => binding.id))];
   const referenceRows = ids.length
