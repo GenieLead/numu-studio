@@ -1315,6 +1315,7 @@ export function StudioShell({ userName }: { userName: string }) {
           projectId: activeProjectId,
           previousDirectionId: direction?.id,
           targetShotIds: selectedShotIds,
+          taggedArtifacts: taggedArtifacts.size > 0 ? Array.from(taggedArtifacts) : undefined,
           autonomy,
           references: resolved
             .filter((item) => Boolean(item.id))
@@ -1333,6 +1334,7 @@ export function StudioShell({ userName }: { userName: string }) {
         requestAccepted = true;
         acceptedTraceId = response.headers.get("X-HAYK-Trace-Id");
         if (!overrideIdea) setPrompt("");
+        if (taggedArtifacts.size > 0) setTaggedArtifacts(new Set());
         if (acceptedTraceId) {
           setDirectionOperation({
             id: acceptedTraceId,
@@ -1913,6 +1915,7 @@ export function StudioShell({ userName }: { userName: string }) {
               busy={busy || projectsLoading || !activeProjectId}
               hasDirection={Boolean(direction)}
               selectedShotIds={selectedShotIds}
+              taggedArtifacts={taggedArtifacts}
               detectedLink={detectedLink}
               recording={recording}
               inputRef={inputRef}
@@ -1922,6 +1925,7 @@ export function StudioShell({ userName }: { userName: string }) {
               onSubmit={submitBrief}
               onRecord={() => void startOrStopRecording()}
               onClearTarget={() => setSelectedShotIds([])}
+              onClearTagged={() => setTaggedArtifacts(new Set())}
             />
           </div>
         </section>
@@ -3000,6 +3004,7 @@ function Composer({
   busy,
   hasDirection,
   selectedShotIds,
+  taggedArtifacts,
   detectedLink,
   recording,
   inputRef,
@@ -3009,6 +3014,7 @@ function Composer({
   onSubmit,
   onRecord,
   onClearTarget,
+  onClearTagged,
 }: {
   prompt: string;
   setPrompt: (value: string) => void;
@@ -3016,6 +3022,7 @@ function Composer({
   busy: boolean;
   hasDirection: boolean;
   selectedShotIds: string[];
+  taggedArtifacts: Set<string>;
   detectedLink: boolean;
   recording: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -3025,6 +3032,7 @@ function Composer({
   onSubmit: () => Promise<void>;
   onRecord: () => void;
   onClearTarget: () => void;
+  onClearTagged: () => void;
 }) {
   return (
     <div className="sticky bottom-3 z-30 mt-6">
@@ -3037,9 +3045,10 @@ function Composer({
           if (files.length) addFiles(files);
         }}
       >
-        {(selectedShotIds.length > 0 || detectedLink) && (
+        {(selectedShotIds.length > 0 || taggedArtifacts.size > 0 || detectedLink) && (
           <div className="flex items-center gap-2 border-b border-white/7 px-3 py-2">
             {selectedShotIds.length > 0 && <button type="button" onClick={onClearTarget} className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-2.5 py-1 text-[9px] text-primary"><Scissors className="size-3" /> Targeting {selectedShotIds.join(" + ")}<X className="size-2.5" /></button>}
+            {taggedArtifacts.size > 0 && <button type="button" onClick={onClearTagged} className="flex items-center gap-1.5 rounded-full border border-[#d9a36c]/30 bg-[#d9a36c]/10 px-2.5 py-1 text-[9px] text-[#d9a36c]"><RefreshCw className="size-3" /> {taggedArtifacts.size} frame{taggedArtifacts.size === 1 ? "" : "s"} tagged for regen<X className="size-2.5" /></button>}
             {detectedLink && <span className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/3 px-2.5 py-1 text-[9px] text-muted-foreground"><Link2 className="size-3" /> Link included</span>}
           </div>
         )}

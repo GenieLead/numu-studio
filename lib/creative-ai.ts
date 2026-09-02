@@ -576,3 +576,35 @@ export async function enhanceShotPlan(
     throw new Error("HAYK could not complete the bounded shot graph. Nothing was approved.");
   }
 }
+
+export async function enhanceRevisionPrompt(
+  apiKey: string,
+  userPrompt: string,
+  taggedArtifactLabels: string[],
+): Promise<string> {
+  if (!apiKey) return userPrompt;
+  try {
+    const response = await boundedDirectorFetch(apiKey, {
+      model: DIRECTOR_MODEL,
+      temperature: 0.3,
+      max_completion_tokens: 400,
+      messages: [
+        {
+          role: "system",
+          content: "You are a prompt enhancer for a cinematic image generation system. The user provides a rough revision request. Enhance it into a precise, detailed instruction that will produce better visual results. Keep the core intent. Be specific about visual changes, not vague. Output ONLY the enhanced prompt text, no explanations.",
+        },
+        {
+          role: "user",
+          content: taggedArtifactLabels.length > 0
+            ? `User wants to regenerate these specific frames: ${taggedArtifactLabels.join(", ")}.\n\nUser's request: ${userPrompt}`
+            : `User's request: ${userPrompt}`,
+        },
+      ],
+    });
+    const rawContent = response.choices?.[0]?.message?.content ?? "";
+    const enhanced = typeof rawContent === "string" ? rawContent.trim() : "";
+    return enhanced.length > 20 && enhanced.length < 1000 ? enhanced : userPrompt;
+  } catch {
+    return userPrompt;
+  }
+}

@@ -15,7 +15,7 @@ import {
   type ReferenceBinding,
   type ReferenceRole,
 } from "@/lib/director";
-import { enhanceDirectorCard, enhanceShotPlan } from "@/lib/creative-ai";
+import { enhanceDirectorCard, enhanceRevisionPrompt, enhanceShotPlan } from "@/lib/creative-ai";
 import { evaluateConceptQuality } from "@/lib/concept-quality";
 import { repairFilmGrammar } from "@/lib/film-grammar";
 import { getOpenRouterKey } from "@/lib/openrouter-session";
@@ -354,10 +354,12 @@ export async function POST(request: Request) {
       previousDirectionId?: unknown;
       targetShotId?: unknown;
       targetShotIds?: unknown;
+      taggedArtifacts?: unknown;
       autonomy?: unknown;
       storyboardFrames?: unknown[];
     };
     const prompt = body.prompt?.trim() ?? "";
+    const taggedArtifacts = Array.isArray(body.taggedArtifacts) ? body.taggedArtifacts.filter((id): id is string => typeof id === "string") : [];
     const projectId = typeof body.projectId === "string" ? body.projectId : "";
     const project = projectId ? await activeProject(ownerEmail, projectId) : null;
     if (!project) return Response.json({ error: "Choose a project before directing it." }, { status: 400 });
@@ -475,7 +477,7 @@ export async function POST(request: Request) {
     }
 
     const id = crypto.randomUUID();
-    const fallbackCard = createDirectorCard(prompt, bindings, previousCard, targetShotIds);
+    const fallbackCard = createDirectorCard(enhancedPrompt, bindings, previousCard, targetShotIds);
     if (previousDirectionId) {
       (fallbackCard as DirectorCard & { previousDirectionId?: string }).previousDirectionId = previousDirectionId;
     }
@@ -490,6 +492,13 @@ export async function POST(request: Request) {
     if (!decisionOnly && !directorApiKey) {
       return Response.json({ error: "Reconnect OpenRouter before HAYK analyzes the references." }, { status: 409 });
     }
+
+    let enhancedPrompt = prompt;
+    if (taggedArtifacts.length > 0 && directorApiKey) {
+      const artifactLabels = taggedArtifacts.slice(0, 10);
+      enhancedPrompt = await enhanceRevisionPrompt(directorApiKey, prompt, artifactLabels);
+    }
+
     const shouldPlanShots = targetShotIds.length > 0 || Boolean(previousCard && ["shots", "sound", "final", "complete"].includes(previousCard.approvalStage ?? "concept"));
     const reuseAnalyzedWorld = Boolean(
       previousCard?.referenceIntelligence?.status === "analyzed" &&
@@ -502,7 +511,7 @@ export async function POST(request: Request) {
       id,
       ownerEmail,
       projectId,
-      prompt,
+      prompt: enhancedPrompt,
       referenceIdsJson: JSON.stringify(bindings),
       directionJson: JSON.stringify(fallbackCard),
       status: "processing",
@@ -557,8 +566,8 @@ export async function POST(request: Request) {
         const card = decisionOnly
           ? fallbackCard
           : shouldPlanShots
-            ? await enhanceShotPlan(directorApiKey, prompt, bindings, fallbackCard, previousCard, targetShotIds, markProviderRequest)
-            : await enhanceDirectorCard(directorApiKey, prompt, bindings, owned, fallbackCard, storyboardFrames, reuseAnalyzedWorld, saveWorldCheckpoint, markProviderRequest);
+            ? await enhanceShotPlan(directorApiKey, enhancedPrompt, bindings, fallbackCard, previousCard, targetShotIds, markProviderRequest)
+            : await enhanceDirectorCard(directorApiKey, enhancedPrompt, bindings, owned, fallbackCard, storyboardFrames, reuseAnalyzedWorld, saveWorldCheckpoint, markProviderRequest);
         const completedAt = new Date().toISOString();
         const [row] = await getDb().update(directions).set({
           directionJson: JSON.stringify(card),
