@@ -21,6 +21,11 @@ function requestedRange(value: string | null, size: number): { offset: number; l
   return { offset, length: end - offset + 1 };
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const ownerEmail = await apiUserEmail();
   if (!ownerEmail) return unauthorized();
@@ -30,13 +35,39 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     eq(productionArtifacts.ownerEmail, ownerEmail),
   )).limit(1);
   if (!artifact?.objectKey) return new Response("Production artifact is not ready.", { status: 404 });
+
+  const objectKey = artifact.objectKey;
+  const url = objectKey.startsWith("http") ? objectKey : null;
+
+  if (url) {
+    try {
+      const response = await fetch(url, { headers: getAuthHeaders() });
+      if (!response.ok) return new Response("Production artifact could not be fetched.", { status: 404 });
+      const size = parseInt(response.headers.get("content-length") ?? "0", 10) || 0;
+      const mimeType = artifact.mimeType || response.headers.get("content-type") || "application/octet-stream";
+      const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("webm") ? "webm" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : mimeType.includes("wav") ? "wav" : "bin";
+      const filename = `${artifact.shotId ?? artifact.kind}-${artifact.id}.${ext}`;
+      return new Response(response.body, {
+        status: 200,
+        headers: {
+          "Content-Type": mimeType,
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control": "private, no-store",
+          ...(size ? { "Content-Length": String(size) } : {}),
+        },
+      });
+    } catch {
+      return new Response("Production artifact could not be fetched.", { status: 500 });
+    }
+  }
+
   const bucket = getBucket();
-  const head = await bucket.head(artifact.objectKey);
+  const head = await bucket.head(objectKey);
   const size = head?.size;
   if (!head || typeof size !== "number") return new Response("Production artifact is missing.", { status: 404 });
   const range = requestedRange(request.headers.get("range"), size);
   if (range === "invalid") return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
-  const object = await bucket.get(artifact.objectKey, range ? { range } : undefined);
+  const object = await bucket.get(objectKey, range ? { range } : undefined);
   if (!object) return new Response("Production artifact is missing.", { status: 404 });
   const mimeType = artifact.mimeType || object.httpMetadata?.contentType || head.httpMetadata?.contentType || "application/octet-stream";
   const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("webm") ? "webm" : mimeType.includes("png") ? "png" : mimeType.includes("jpeg") || mimeType.includes("jpg") ? "jpg" : mimeType.includes("wav") ? "wav" : "bin";
