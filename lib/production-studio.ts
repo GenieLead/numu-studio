@@ -149,7 +149,7 @@ export type ReferenceEvidenceFrame = {
 
 export function parseDirectionCard(directionJson: string): DirectorCard {
   const card = JSON.parse(directionJson) as DirectorCard;
-  if (card.approvalStage !== "complete" || !card.lockedAt) {
+  if (card.approvalStage !== "complete" || (!card.lockedAt && !card.revisionPlan)) {
     throw new Error("Lock the complete direction before opening production.");
   }
   return card;
