@@ -1898,6 +1898,9 @@ export function StudioShell({ userName }: { userName: string }) {
                   onRunQc={() => void runContinuityQc()}
                   onResetFailedArtifact={(artifactId) => void prepareFailedArtifactRetry(artifactId)}
                   onRefreshProduction={() => void loadProductionRoute(direction.id, activeProjectId!)}
+                  taggedArtifacts={taggedArtifacts}
+                  onTagArtifact={(id) => setTaggedArtifacts((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; })}
+                  onRegenerateShot={onRegenerateShot}
                   onDecision={(decision, option) => void submitBrief(
                     `Decision ${decision.id}: ${option}. Preserve every other approved creative choice.`,
                     `${decision.id === "voiceover" ? "Voiceover" : "Music & sound"}: ${option}`,
@@ -2449,6 +2452,9 @@ function DirectorReply({
   onRunQc,
   onResetFailedArtifact,
   onRefreshProduction,
+  taggedArtifacts,
+  onTagArtifact,
+  onRegenerateShot,
 }: {
   direction: DirectionState;
   mediaWorker: MediaWorkerState;
@@ -2476,6 +2482,9 @@ function DirectorReply({
   onRunQc: () => void;
   onResetFailedArtifact: (artifactId: string) => void;
   onRefreshProduction: () => void;
+  taggedArtifacts: Set<string>;
+  onTagArtifact: (id: string) => void;
+  onRegenerateShot: (shotId: string) => void;
 }) {
   const card = direction.card;
   const grammar = card.filmGrammar ?? fallbackGrammar();
@@ -2654,6 +2663,8 @@ function DirectorReply({
             onRunQc={onRunQc}
             onResetFailedArtifact={onResetFailedArtifact}
             onRefresh={onRefreshProduction}
+            taggedArtifacts={taggedArtifacts}
+            onTagArtifact={onTagArtifact}
           />
         )}
       </div>
@@ -2679,6 +2690,8 @@ function ProductionStudio({
   onRunQc,
   onResetFailedArtifact,
   onRefresh,
+  taggedArtifacts,
+  onTagArtifact,
 }: {
   card: DirectorCard;
   mediaWorker: MediaWorkerState;
@@ -2697,6 +2710,8 @@ function ProductionStudio({
   onRunQc: () => void;
   onResetFailedArtifact: (artifactId: string) => void;
   onRefresh: () => void;
+  taggedArtifacts: Set<string>;
+  onTagArtifact: (id: string) => void;
 }) {
   const [selectedStage, setSelectedStage] = useState<ProductionStage | null>(null);
   if (loading && !production) {
@@ -2708,6 +2723,7 @@ function ProductionStudio({
 
   const stage = production.currentStage;
   const stageArtifacts = production.artifacts.filter((artifact) => artifact.stage === stage);
+  const requiredArtifacts = stageArtifacts.filter((artifact) => artifact.kind !== "source_asset");
   const failedArtifacts = stageArtifacts.filter((artifact) => artifact.status === "failed");
   const failedArtifactReusesApproval = failedArtifacts[0]?.metadata.interruptedRequest === true
     && failedArtifacts[0]?.metadata.retryUsesExistingApproval === true;
@@ -2738,7 +2754,7 @@ function ProductionStudio({
         {((selectedStage ?? stage) === "identity" || (selectedStage ?? stage) === "storyboard") && (
           <div>
            <VisualGenerationGate
-            stage={selectedStage ?? stage}
+            stage={(selectedStage ?? stage) as "identity" | "storyboard"}
             artifacts={production.artifacts.filter((a) => a.stage === (selectedStage ?? stage))}
             quote={production.quote}
             authorizedMaxCostUsd={production.approvedCostUsd}
@@ -2747,7 +2763,7 @@ function ProductionStudio({
             onGenerate={onGenerateStage}
             onApprove={() => onApproveStage(selectedStage ?? stage)}
             taggedArtifacts={taggedArtifacts}
-            onTagArtifact={(id) => setTaggedArtifacts((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; })}
+            onTagArtifact={onTagArtifact}
           />
           </div>
         )}

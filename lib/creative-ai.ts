@@ -600,8 +600,9 @@ export async function enhanceRevisionPrompt(
             : `User's request: ${userPrompt}`,
         },
       ],
-    });
-    const rawContent = response.choices?.[0]?.message?.content ?? "";
+    }, "prompt_enhancement");
+    const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const rawContent = body.choices?.[0]?.message?.content ?? "";
     const enhanced = typeof rawContent === "string" ? rawContent.trim() : "";
     return enhanced.length > 20 && enhanced.length < 1000 ? enhanced : userPrompt;
   } catch {

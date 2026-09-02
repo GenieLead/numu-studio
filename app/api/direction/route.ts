@@ -477,6 +477,7 @@ export async function POST(request: Request) {
     }
 
     const id = crypto.randomUUID();
+    let enhancedPrompt = prompt;
     const fallbackCard = createDirectorCard(enhancedPrompt, bindings, previousCard, targetShotIds);
     if (previousDirectionId) {
       (fallbackCard as DirectorCard & { previousDirectionId?: string }).previousDirectionId = previousDirectionId;
@@ -493,7 +494,6 @@ export async function POST(request: Request) {
       return Response.json({ error: "Reconnect OpenRouter before HAYK analyzes the references." }, { status: 409 });
     }
 
-    let enhancedPrompt = prompt;
     if (taggedArtifacts.length > 0 && directorApiKey) {
       const artifactLabels = taggedArtifacts.slice(0, 10);
       enhancedPrompt = await enhanceRevisionPrompt(directorApiKey, prompt, artifactLabels);
