@@ -2719,17 +2719,52 @@ function ProductionStudio({
 
       <div className="px-5 py-6 sm:px-7">
         {viewingStage && viewingStage !== stage && <div className="mb-4 flex items-center gap-2"><Button variant="outline" size="sm" onClick={() => setViewingStage(null)} className="rounded-full text-[10px]">← Back to current stage ({stage})</Button><span className="text-[10px] text-muted-foreground">Viewing: {viewingStage}</span></div>}
-        {(() => { const activeStage = viewingStage && viewingStage !== stage ? viewingStage : stage;
-        if (activeStage === "evidence") return <div id="section-evidence"><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>;
-        if (activeStage === "identity" || activeStage === "storyboard") return <div id="section-identity"><VisualGenerationGate stage={activeStage} artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage(activeStage)} /></div>;
-        if (activeStage === "motion") return <div id="section-motion"><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>;
-        if (activeStage === "voice") return <div id="section-voice"><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>;
-        if (activeStage === "score") return <div id="section-score"><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>;
-        if (activeStage === "stems") return <div id="section-stems"><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>;
-        if (activeStage === "conform") return <div id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>;
-        if (activeStage === "qc") return <div id="section-qc"><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>;
-        if (activeStage === "master") return <div id="section-master"><MasterGate production={production} master={master} report={report} /></div>;
-        return null; })()}
+        {viewingStage && viewingStage !== stage
+          ? (() => { const vs = viewingStage; const va = production.artifacts.filter((a) => a.stage === vs);
+            if (vs === "evidence") return <div id="section-evidence"><EvidenceGate card={card} artifacts={va} ready={true} busy={false} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>;
+            if (vs === "identity" || vs === "storyboard") return <div id="section-identity"><VisualGenerationGate stage={vs} artifacts={va} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={true} busy={false} onGenerate={onGenerateStage} onApprove={() => onApproveStage(vs)} /></div>;
+            if (vs === "motion") return <div id="section-motion"><MotionGate artifacts={va} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={true} busy={false} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>;
+            if (vs === "voice") return <div id="section-voice"><VoiceGate artifacts={va} busy={false} onSkip={onSkipVoice} /></div>;
+            if (vs === "score") return <div id="section-score"><ScoreGate artifacts={va} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={true} busy={false} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>;
+            if (vs === "stems") return <div id="section-stems"><StemsGate artifacts={va} mediaWorker={mediaWorker} /></div>;
+            if (vs === "conform") return <div id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={true} busy={false} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>;
+            if (vs === "qc") return <div id="section-qc"><QcGate report={report} busy={false} onRun={onRunQc} master={master} /></div>;
+            if (vs === "master") return <div id="section-master"><MasterGate production={production} master={master} report={report} /></div>;
+            return null; })()
+          : <>
+        {stage === "evidence" && <div id="section-evidence"><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
+
+        {(stage === "identity" || stage === "storyboard") && (
+          <div id="section-identity">
+          <VisualGenerationGate
+            stage={stage}
+            artifacts={stageArtifacts}
+            quote={production.quote}
+            authorizedMaxCostUsd={production.approvedCostUsd}
+            ready={stageReady}
+            busy={Boolean(action)}
+            onGenerate={onGenerateStage}
+            onApprove={() => onApproveStage(stage)}
+          />
+          </div>
+        )}
+
+        {stage === "motion" && (
+          <div id="section-motion"><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
+        )}
+
+        {stage === "voice" && <div id="section-voice"><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
+
+        {stage === "score" && <div id="section-score"><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
+
+        {stage === "stems" && <div id="section-stems"><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>}
+
+        {stage === "conform" && <div id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
+
+        {stage === "qc" && <div id="section-qc"><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
+
+        {stage === "master" && <div id="section-master"><MasterGate production={production} master={master} report={report} /></div>}
+        </>}
 
         {failedArtifacts.length > 0 && (
           <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/[0.055] p-4">
