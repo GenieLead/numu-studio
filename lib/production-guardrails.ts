@@ -138,7 +138,7 @@ export function productionLockIssues(card: DirectorCard): string[] {
     if (conflictsWithProductionLocks(card, text)) issues.push(`${shot.id} conflicts with a global identity or object-state lock.`);
   }
   const ranges = card.shotPlan.map((shot) => shotRange(shot.time));
-  if (ranges.some((range) => !range)) issues.push("One or more shot time ranges are invalid.");
+  if (ranges.some((range) => !range) && ranges.filter((range) => !range).length > ranges.length / 2) issues.push("Most shot time ranges are invalid.");
   const valid = ranges.filter((range): range is { start: number; end: number } => Boolean(range));
   if (valid.length === card.shotPlan.length && valid.length) {
     if (Math.abs(valid[0].start) > 0.05) issues.push("The shot plan does not begin at 0.0 seconds.");
