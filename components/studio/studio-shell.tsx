@@ -1640,7 +1640,7 @@ export function StudioShell({ userName }: { userName: string }) {
   };
 
   const onRegenerateShot = async (shotId: string) => {
-    if (!production || productionAction) return;
+    if (!production) return;
     setProductionAction(`Regenerating shot ${shotId}...`);
     setProductionError(null);
     try {
