@@ -522,10 +522,13 @@ function normalizedShotIds(ids: string[]): string[] {
 export function revisionShotIds(prompt: string, targetShotIds: string[] = []): string[] {
   const selected = normalizedShotIds(targetShotIds);
   if (selected.length) return selected;
-  const explicitClause = prompt.match(/(?:revise|change|replace|edit|update)\s+only\s+([^.\n]+)/i)?.[1]
-    ?? prompt.match(/(?:revise|change|replace|edit|update)\s+([^.\n]+?)\s+only\b/i)?.[1]
+  const explicitClause = prompt.match(/(?:revise|change|replace|edit|update|regenerate|redo|fix|improve|adjust|retry|try)\s+only\s+([^.\n]+)/i)?.[1]
+    ?? prompt.match(/(?:revise|change|replace|edit|update|regenerate|redo|fix|improve|adjust|retry|try)\s+([^.\n]+?)\s+only\b/i)?.[1]
     ?? "";
-  return normalizedShotIds([...explicitClause.matchAll(/\bS\d{2}\b/gi)].map((match) => match[0]));
+  const fromExplicit = normalizedShotIds([...explicitClause.matchAll(/\bS\d{2}\b/gi)].map((match) => match[0]));
+  if (fromExplicit.length) return fromExplicit;
+  const allMentions = [...prompt.matchAll(/\bS\d{2}\b/gi)].map((match) => match[0]);
+  return normalizedShotIds(allMentions);
 }
 
 export function storyBeatsFromShots(shots: ShotSpec[]): DirectorCard["storyBeats"] {

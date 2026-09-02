@@ -1639,6 +1639,19 @@ export function StudioShell({ userName }: { userName: string }) {
     }
   };
 
+  const onRegenerateShot = async (shotId: string) => {
+    if (!production || productionAction) return;
+    setProductionAction(`Regenerating shot ${shotId}...`);
+    setProductionError(null);
+    try {
+      await productionPost("regenerate_shot", { shotId });
+    } catch (caught) {
+      setProductionError(caught instanceof Error ? caught.message : `Could not regenerate shot ${shotId}.`);
+    } finally {
+      setProductionAction(null);
+    }
+  };
+
   const approveSection = async (section: ApprovalSection) => {
     if (!direction || !activeProjectId || busy) return;
     setBusy(true);
@@ -2489,7 +2502,7 @@ function DirectorReply({
           <ApprovalTrail active={approvalStage} approved={approved} />
         </div>
 
-        {visibleRevisionPlan && <RevisionPanel plan={visibleRevisionPlan} />}
+        {visibleRevisionPlan && <RevisionPanel plan={visibleRevisionPlan} onApplyRevision={() => { if (visibleRevisionPlan.target.includes("S0")) { const shotMatch = visibleRevisionPlan.target.match(/(S\d{2})/); if (shotMatch) { onRegenerateShot(shotMatch[1]); } } }} />}
 
         {approvalStage === "concept" && (
           <div className="relative overflow-hidden px-5 py-6 sm:px-7">
@@ -2939,7 +2952,7 @@ function ShotCard({ shot, selected, onSelect }: { shot: ShotSpec; selected: bool
   );
 }
 
-function RevisionPanel({ plan }: { plan: RevisionPlan }) {
+function RevisionPanel({ plan, onApplyRevision }: { plan: RevisionPlan; onApplyRevision?: () => void }) {
   return (
     <div className="border-b border-primary/12 bg-[linear-gradient(90deg,rgba(217,255,87,0.08),rgba(217,255,87,0.015))] px-5 py-5 sm:px-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2954,6 +2967,7 @@ function RevisionPanel({ plan }: { plan: RevisionPlan }) {
         <div className="rounded-xl border border-primary/12 bg-black/15 p-3"><p className="text-[9px] uppercase tracking-[0.12em] text-primary/65">Change only</p><div className="mt-2 flex flex-wrap gap-1.5">{plan.layers.map((layer) => <span key={layer} className="rounded-full bg-primary/10 px-2 py-1 text-[9px] text-primary">{layer}</span>)}</div></div>
         <div className="rounded-xl border border-white/7 bg-black/15 p-3"><p className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Protected master</p><p className="mt-2 text-[10px] leading-5 text-[#aaa9a1]">{plan.preserved.join(" · ")}</p></div>
       </div>
+      {onApplyRevision && <Button onClick={onApplyRevision} className="mt-4 rounded-full bg-primary text-primary-foreground"><Scissors className="size-3.5" /> Apply revision</Button>}
     </div>
   );
 }

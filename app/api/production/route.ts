@@ -948,19 +948,48 @@ async function runQc(production: OwnedProduction, apiKey: string): Promise<Owned
   }
 }
 
+async function regenerateShot(production: OwnedProduction, shotId: string): Promise<OwnedProduction> {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const upperShotId = shotId.toUpperCase();
+  const affectedArtifacts = await db.select().from(productionArtifacts).where(and(
+    eq(productionArtifacts.runId, production.run.id),
+    eq(productionArtifacts.shotId, upperShotId),
+  ));
+  if (!affectedArtifacts.length) throw new Error(`No artifacts found for shot ${upperShotId}.`);
+  for (const artifact of affectedArtifacts) {
+    if (artifact.status === "completed" || artifact.status === "failed") {
+      await db.update(productionArtifacts).set({
+        status: "planned",
+        approvalStatus: "pending",
+        error: null,
+        objectKey: null,
+        actualCostUsd: null,
+        metadataJson: JSON.stringify({ ...metadata(artifact.metadataJson), regeneratedAt: now, previousStatus: artifact.status }),
+        updatedAt: now,
+      }).where(eq(productionArtifacts.id, artifact.id));
+    }
+  }
+  await db.update(productionRuns).set({
+    status: "stage_ready",
+    error: null,
+    updatedAt: now,
+  }).where(eq(productionRuns.id, production.run.id));
+  return refreshProduction(production);
+}
+
 async function resetFailedArtifact(production: OwnedProduction, artifactId: string): Promise<OwnedProduction> {
   const db = getDb();
   const [artifact] = await db.select().from(productionArtifacts).where(and(
     eq(productionArtifacts.id, artifactId),
     eq(productionArtifacts.runId, production.run.id),
-    eq(productionArtifacts.stage, production.run.currentStage),
   )).limit(1);
-  if (!artifact || artifact.status !== "failed") throw new Error("Choose a failed artifact in the current gate.");
+  if (!artifact || artifact.status !== "failed") throw new Error("Choose a failed artifact.");
   const now = new Date().toISOString();
   const artifactMetadata = metadata(artifact.metadataJson);
   const usesExistingApproval = artifactMetadata.interruptedRequest === true
     && artifactMetadata.retryUsesExistingApproval === true
-    && ["identity", "storyboard"].includes(production.run.currentStage)
+    && ["identity", "storyboard", "motion"].includes(artifact.stage)
     && production.run.approvedCostUsd !== null
     && artifact.estimatedCostUsd !== null;
   if (usesExistingApproval) {
@@ -1062,6 +1091,8 @@ export async function POST(request: Request) {
         production = await runQc(production, streamedApiKey!);
       } else if (body.action === "reset_failed_artifact" && body.artifactId) {
         production = await resetFailedArtifact(production, body.artifactId);
+      } else if (body.action === "regenerate_shot" && typeof body.shotId === "string") {
+        production = await regenerateShot(production, body.shotId);
       } else {
         throw new Error("Unknown or incomplete production action.");
       }
