@@ -777,7 +777,6 @@ export function StudioShell({ userName }: { userName: string }) {
   const [production, setProduction] = useState<ProductionRunPublic | null>(null);
   const [productionLoading, setProductionLoading] = useState(false);
   const [productionAction, setProductionAction] = useState<string | null>(null);
-  const [taggedArtifacts, setTaggedArtifacts] = useState<Set<string>>(new Set());
   const [productionError, setProductionError] = useState<string | null>(null);
   const [productionElapsedSeconds, setProductionElapsedSeconds] = useState(0);
   const [assemblyProgress, setAssemblyProgress] = useState<string | null>(null);
@@ -1315,7 +1314,6 @@ export function StudioShell({ userName }: { userName: string }) {
           projectId: activeProjectId,
           previousDirectionId: direction?.id,
           targetShotIds: selectedShotIds,
-          taggedArtifacts: taggedArtifacts.size > 0 ? Array.from(taggedArtifacts) : undefined,
           autonomy,
           references: resolved
             .filter((item) => Boolean(item.id))
@@ -1334,7 +1332,6 @@ export function StudioShell({ userName }: { userName: string }) {
         requestAccepted = true;
         acceptedTraceId = response.headers.get("X-HAYK-Trace-Id");
         if (!overrideIdea) setPrompt("");
-        if (taggedArtifacts.size > 0) setTaggedArtifacts(new Set());
         if (acceptedTraceId) {
           setDirectionOperation({
             id: acceptedTraceId,
@@ -1898,9 +1895,6 @@ export function StudioShell({ userName }: { userName: string }) {
                   onRunQc={() => void runContinuityQc()}
                   onResetFailedArtifact={(artifactId) => void prepareFailedArtifactRetry(artifactId)}
                   onRefreshProduction={() => void loadProductionRoute(direction.id, activeProjectId!)}
-                  taggedArtifacts={taggedArtifacts}
-                  onTagArtifact={(id) => setTaggedArtifacts((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; })}
-                  onRegenerateShot={onRegenerateShot}
                   onDecision={(decision, option) => void submitBrief(
                     `Decision ${decision.id}: ${option}. Preserve every other approved creative choice.`,
                     `${decision.id === "voiceover" ? "Voiceover" : "Music & sound"}: ${option}`,
@@ -1918,7 +1912,6 @@ export function StudioShell({ userName }: { userName: string }) {
               busy={busy || projectsLoading || !activeProjectId}
               hasDirection={Boolean(direction)}
               selectedShotIds={selectedShotIds}
-              taggedArtifacts={taggedArtifacts}
               detectedLink={detectedLink}
               recording={recording}
               inputRef={inputRef}
@@ -1928,7 +1921,6 @@ export function StudioShell({ userName }: { userName: string }) {
               onSubmit={submitBrief}
               onRecord={() => void startOrStopRecording()}
               onClearTarget={() => setSelectedShotIds([])}
-              onClearTagged={() => setTaggedArtifacts(new Set())}
             />
           </div>
         </section>
@@ -2409,6 +2401,7 @@ function CreativeDecisionsPanel({ decisions, onChoose }: { decisions: CreativeDe
                   <button
                     key={option}
                     type="button"
+                    disabled={selected}
                     aria-pressed={selected}
                     onClick={() => onChoose(decision, option)}
                     className={`rounded-full border px-2.5 py-1.5 text-[9px] transition ${selected ? "border-primary/35 bg-primary/14 text-primary" : option === decision.recommended ? "border-primary/18 bg-primary/[0.06] text-primary/80 hover:bg-primary/10" : "border-white/9 bg-white/3 text-[#aaa9a1] hover:border-white/18"}`}
@@ -2452,9 +2445,6 @@ function DirectorReply({
   onRunQc,
   onResetFailedArtifact,
   onRefreshProduction,
-  taggedArtifacts,
-  onTagArtifact,
-  onRegenerateShot,
 }: {
   direction: DirectionState;
   mediaWorker: MediaWorkerState;
@@ -2482,9 +2472,6 @@ function DirectorReply({
   onRunQc: () => void;
   onResetFailedArtifact: (artifactId: string) => void;
   onRefreshProduction: () => void;
-  taggedArtifacts: Set<string>;
-  onTagArtifact: (id: string) => void;
-  onRegenerateShot: (shotId: string) => void;
 }) {
   const card = direction.card;
   const grammar = card.filmGrammar ?? fallbackGrammar();
@@ -2493,7 +2480,7 @@ function DirectorReply({
   const departments = departmentsFor(card);
   const referencePlan = referencePlanFor(card, references);
   const intelligence = intelligenceFor(card);
-  const openDecisionCount = (card.creativeDecisions ?? []).filter((decision) => !decision.answer).length;
+  const openDecisionCount = (card.creativeDecisions ?? []).filter((decision) => decision.status === "open").length;
   const approvalStage: ApprovalStage = productionLocked ? "complete" : card.approvalStage ?? "concept";
   const approved = new Set(card.approvedSections ?? []);
   const referenceAnalysisRequired = intelligence.status !== "analyzed" && references.some((reference) =>
@@ -2502,7 +2489,7 @@ function DirectorReply({
   const legacyConcept = card.analysisProvenance?.contractVersion !== DIRECTOR_CONTRACT_VERSION;
   const conceptV2Ready = card.analysisProvenance?.contractVersion === DIRECTOR_CONTRACT_VERSION && card.conceptQuality?.status === "passed" && Boolean(card.conceptStrategy);
   const stepIndex = approvalStage === "concept" ? 0 : approvalStage === "language" ? 1 : approvalStage === "shots" ? 2 : approvalStage === "sound" ? 3 : 4;
-  const visibleRevisionPlan = approvalStage === "complete" ? null : approvalStage !== "concept" && card.revisionPlan?.target === "Concept strategy only" ? null : card.revisionPlan;
+  const visibleRevisionPlan = approvalStage !== "concept" && card.revisionPlan?.target === "Concept strategy only" ? null : card.revisionPlan;
   return (
     <div className="flex gap-3">
       <HaykAvatar />
@@ -2663,8 +2650,6 @@ function DirectorReply({
             onRunQc={onRunQc}
             onResetFailedArtifact={onResetFailedArtifact}
             onRefresh={onRefreshProduction}
-            taggedArtifacts={taggedArtifacts}
-            onTagArtifact={onTagArtifact}
           />
         )}
       </div>
@@ -2690,8 +2675,6 @@ function ProductionStudio({
   onRunQc,
   onResetFailedArtifact,
   onRefresh,
-  taggedArtifacts,
-  onTagArtifact,
 }: {
   card: DirectorCard;
   mediaWorker: MediaWorkerState;
@@ -2710,10 +2693,7 @@ function ProductionStudio({
   onRunQc: () => void;
   onResetFailedArtifact: (artifactId: string) => void;
   onRefresh: () => void;
-  taggedArtifacts: Set<string>;
-  onTagArtifact: (id: string) => void;
 }) {
-  const [selectedStage, setSelectedStage] = useState<ProductionStage | null>(null);
   if (loading && !production) {
     return <div className="border-t border-white/8 px-5 py-7 sm:px-7"><div className="flex items-center gap-3 text-sm"><LoaderCircle className="size-5 animate-spin text-primary" />Opening the protected production room…</div></div>;
   }
@@ -2724,6 +2704,7 @@ function ProductionStudio({
   const stage = production.currentStage;
   const stageArtifacts = production.artifacts.filter((artifact) => artifact.stage === stage);
   const requiredArtifacts = stageArtifacts.filter((artifact) => artifact.kind !== "source_asset");
+  const stageReady = Boolean(requiredArtifacts.length) && requiredArtifacts.every((artifact) => artifact.status === "completed");
   const failedArtifacts = stageArtifacts.filter((artifact) => artifact.status === "failed");
   const failedArtifactReusesApproval = failedArtifacts[0]?.metadata.interruptedRequest === true
     && failedArtifacts[0]?.metadata.retryUsesExistingApproval === true;
@@ -2742,47 +2723,46 @@ function ProductionStudio({
           </div>
           <div className="rounded-xl border border-primary/15 bg-primary/[0.05] px-3 py-2 text-right"><p className="text-[8px] uppercase tracking-[0.14em] text-muted-foreground">Verified spend</p><p className="mt-1 font-mono text-sm text-primary">${production.actualCostUsd.toFixed(2)}</p></div>
         </div>
-        <ProductionTrail current={stage} selected={selectedStage ?? stage} onSelect={setSelectedStage} artifacts={production.artifacts} />
+        <ProductionTrail current={stage} artifacts={production.artifacts} />
         <StudioRouteMap />
       </div>
 
       {action && <ProductionWorking action={assemblyProgress ?? action} elapsedSeconds={elapsedSeconds} remainingSeconds={remaining} />}
 
       <div className="px-5 py-6 sm:px-7">
-        {(selectedStage ?? stage) === "evidence" && <div><EvidenceGate card={card} artifacts={production.artifacts.filter((a) => a.stage === "evidence")} ready={production.artifacts.filter((a) => a.stage === "evidence").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
+        {stage === "evidence" && <div><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
 
-        {((selectedStage ?? stage) === "identity" || (selectedStage ?? stage) === "storyboard") && (
+        {(stage === "identity" || stage === "storyboard") && (
           <div>
            <VisualGenerationGate
-            stage={(selectedStage ?? stage) as "identity" | "storyboard"}
-            artifacts={production.artifacts.filter((a) => a.stage === (selectedStage ?? stage))}
+            stage={stage}
+            artifacts={stageArtifacts}
             quote={production.quote}
             authorizedMaxCostUsd={production.approvedCostUsd}
-            ready={production.artifacts.filter((a) => a.stage === (selectedStage ?? stage)).filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")}
+            ready={stageReady}
             busy={Boolean(action)}
             onGenerate={onGenerateStage}
-            onApprove={() => onApproveStage(selectedStage ?? stage)}
-            taggedArtifacts={taggedArtifacts}
-            onTagArtifact={onTagArtifact}
+            onApprove={() => onApproveStage(stage)}
+            onEditArtifact={(artifactId, promptText) => { setPrompt(`Regenerate ${stageArtifacts.find((a) => a.id === artifactId)?.label ?? artifactId}: ${promptText}`); setTimeout(() => submitBrief(`Regenerate ${stageArtifacts.find((a) => a.id === artifactId)?.label ?? artifactId}: ${promptText}`), 100); }}
           />
           </div>
         )}
 
-        {(selectedStage ?? stage) === "motion" && (
-          <div><MotionGate artifacts={production.artifacts.filter((a) => a.stage === "motion")} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={production.artifacts.filter((a) => a.stage === "motion").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
+        {stage === "motion" && (
+          <div><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
         )}
 
-        {(selectedStage ?? stage) === "voice" && <div><VoiceGate artifacts={production.artifacts.filter((a) => a.stage === "voice")} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
+        {stage === "voice" && <div><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
 
-        {(selectedStage ?? stage) === "score" && <div><ScoreGate artifacts={production.artifacts.filter((a) => a.stage === "score")} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={production.artifacts.filter((a) => a.stage === "score").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
+        {stage === "score" && <div><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
 
-        {(selectedStage ?? stage) === "stems" && <div><StemsGate artifacts={production.artifacts.filter((a) => a.stage === "stems")} mediaWorker={mediaWorker} /></div>}
+        {stage === "stems" && <div><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>}
 
-        {(selectedStage ?? stage) === "conform" && <div><AssemblyGate artifacts={production.artifacts} master={master} ready={production.artifacts.filter((a) => a.stage === "conform").filter((a) => a.kind !== "source_asset").every((a) => a.status === "completed")} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
+        {stage === "conform" && <div><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /></div>}
 
-        {(selectedStage ?? stage) === "qc" && <div><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
+        {stage === "qc" && <div><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} master={master} /></div>}
 
-        {(selectedStage ?? stage) === "master" && <div><MasterGate production={production} master={master} report={report} /></div>}
+        {stage === "master" && <div><MasterGate production={production} master={master} report={report} /></div>}
 
         {failedArtifacts.length > 0 && (
           <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/[0.055] p-4">
@@ -2820,7 +2800,7 @@ function StudioRouteMap() {
   );
 }
 
-function ProductionTrail({ current, selected, onSelect, artifacts }: { current: ProductionStage; selected: ProductionStage; onSelect: (stage: ProductionStage) => void; artifacts: ProductionArtifactPublic[] }) {
+function ProductionTrail({ current, artifacts }: { current: ProductionStage; artifacts: ProductionArtifactPublic[] }) {
   const stages: Array<{ id: ProductionStage; label: string }> = [
     { id: "evidence", label: "Evidence" },
     { id: "identity", label: "Identity" },
@@ -2834,7 +2814,7 @@ function ProductionTrail({ current, selected, onSelect, artifacts }: { current: 
     { id: "master", label: "Master" },
   ];
   const currentIndex = stages.findIndex((item) => item.id === current);
-  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const isSelected = item.id === selected; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <button key={item.id} type="button" onClick={() => onSelect(item.id)} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] transition ${isSelected ? "border-primary/40 bg-primary/15 text-primary ring-1 ring-primary/20" : complete ? "border-primary/20 bg-primary/8 text-primary hover:bg-primary/12" : working ? "border-white/18 bg-white/6 text-foreground hover:bg-white/10" : "border-white/7 text-muted-foreground/50 hover:border-white/15"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</button>; })}</div>;
+  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <div key={item.id} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] ${complete ? "border-primary/20 bg-primary/8 text-primary" : working ? "border-white/18 bg-white/6 text-foreground" : "border-white/7 text-muted-foreground/50"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</div>; })}</div>;
 }
 
 function ProductionWorking({ action, elapsedSeconds, remainingSeconds }: { action: string; elapsedSeconds: number; remainingSeconds: number }) {
@@ -2860,9 +2840,9 @@ function EvidenceGate({ card, artifacts, ready, busy, onBuild, onApprove }: { ca
   </div>;
 }
 
-function VisualGenerationGate({ stage, artifacts, quote, authorizedMaxCostUsd, ready, busy, onGenerate, onApprove, taggedArtifacts, onTagArtifact }: { stage: "identity" | "storyboard"; artifacts: ProductionArtifactPublic[]; quote: ProductionRunPublic["quote"]; authorizedMaxCostUsd: number | null; ready: boolean; busy: boolean; onGenerate: () => void; onApprove: () => void; taggedArtifacts?: Set<string>; onTagArtifact?: (artifactId: string) => void }) {
+function VisualGenerationGate({ stage, artifacts, quote, authorizedMaxCostUsd, ready, busy, onGenerate, onApprove, onEditArtifact }: { stage: "identity" | "storyboard"; artifacts: ProductionArtifactPublic[]; quote: ProductionRunPublic["quote"]; authorizedMaxCostUsd: number | null; ready: boolean; busy: boolean; onGenerate: () => void; onApprove: () => void; onEditArtifact?: (artifactId: string, prompt: string) => void }) {
   const label = stage === "identity" ? "Canonical identity plates" : "Shot first + landing frames";
-  return <div><GateHeading number={stage === "identity" ? "2" : "3"} title={label} subtitle={stage === "identity" ? "Exact product and character authorities are normalized before any shot is animated." : "Every shot gets an inspectable beginning and end. Motion cannot start until these frames are approved."} badge={quote?.modelName ?? artifacts.find((artifact) => artifact.model)?.model ?? "reference-aware image model"} /><ArtifactGrid artifacts={artifacts} taggedArtifacts={taggedArtifacts} onTagArtifact={onTagArtifact} />{!ready && quote && <PaidStageApproval quote={quote} authorizedMaxCostUsd={authorizedMaxCostUsd} busy={busy} verb={stage === "identity" ? "Generate identity plates" : "Generate all shot frames"} onApprove={onGenerate} />}{!ready && !quote && !busy && <p className="mt-5 text-[10px] text-muted-foreground">The live route is being verified. Refresh if no quote appears.</p>}{ready && <StageApproval label={stage === "identity" ? "Approve identities" : "Approve shot frames"} hint={stage === "identity" ? "Inspect exact bottle geometry, wardrobe coverage and falcon identity before storyboards." : "Inspect product shape, hands, wardrobe, composition and the start-to-end action handoff for every shot."} disabled={busy} onApprove={onApprove} />}</div>;
+  return <div><GateHeading number={stage === "identity" ? "2" : "3"} title={label} subtitle={stage === "identity" ? "Exact product and character authorities are normalized before any shot is animated." : "Every shot gets an inspectable beginning and end. Motion cannot start until these frames are approved."} badge={quote?.modelName ?? artifacts.find((artifact) => artifact.model)?.model ?? "reference-aware image model"} /><ArtifactGrid artifacts={artifacts} onEditArtifact={onEditArtifact} />{!ready && quote && <PaidStageApproval quote={quote} authorizedMaxCostUsd={authorizedMaxCostUsd} busy={busy} verb={stage === "identity" ? "Generate identity plates" : "Generate all shot frames"} onApprove={onGenerate} />}{!ready && !quote && !busy && <p className="mt-5 text-[10px] text-muted-foreground">The live route is being verified. Refresh if no quote appears.</p>}{ready && <StageApproval label={stage === "identity" ? "Approve identities" : "Approve shot frames"} hint={stage === "identity" ? "Inspect exact bottle geometry, wardrobe coverage and falcon identity before storyboards." : "Inspect product shape, hands, wardrobe, composition and the start-to-end action handoff for every shot."} disabled={busy} onApprove={onApprove} />}</div>;
 }
 
 function MotionGate({ artifacts, tasks, quote, authorizedMaxCostUsd, ready, busy, onGenerate, onApprove }: { artifacts: ProductionArtifactPublic[]; tasks: ProductionRunPublic["tasks"]; quote: ProductionRunPublic["quote"]; authorizedMaxCostUsd: number | null; ready: boolean; busy: boolean; onGenerate: () => void; onApprove: () => void }) {
@@ -2912,15 +2892,14 @@ function GateHeading({ number, title, subtitle, badge }: { number: string; title
   return <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-primary/70">{number} · production gate</p><h3 className="mt-2 text-xl font-medium tracking-[-0.03em]">{title}</h3><p className="mt-1 max-w-3xl text-[11px] leading-5 text-muted-foreground">{subtitle}</p></div><Badge variant="outline" className="border-white/10 bg-white/[0.025] text-[9px] text-muted-foreground">{badge}</Badge></div>;
 }
 
-function ArtifactGrid({ artifacts, onEditArtifact, taggedArtifacts, onTagArtifact }: { artifacts: ProductionArtifactPublic[]; onEditArtifact?: (artifactId: string, prompt: string) => void; taggedArtifacts?: Set<string>; onTagArtifact?: (artifactId: string) => void }) {
+function ArtifactGrid({ artifacts, onEditArtifact }: { artifacts: ProductionArtifactPublic[]; onEditArtifact?: (artifactId: string, prompt: string) => void }) {
   if (!artifacts.length) return <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.015] p-5 text-[10px] text-muted-foreground">Artifacts will appear here one by one.</div>;
   return <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{artifacts.map((artifact) => {
     const audio = artifact.mediaUrl && artifact.mimeType?.startsWith("audio/");
     const video = artifact.mediaUrl && artifact.mimeType?.startsWith("video/");
     const image = artifact.mediaUrl && artifact.mimeType?.startsWith("image/");
     const audioKind = artifact.kind.includes("voice") || artifact.kind.includes("score") || artifact.kind.includes("stem") || artifact.kind.includes("dialogue");
-    const isTagged = taggedArtifacts?.has(artifact.id);
-    return <div key={artifact.id} onClick={() => onTagArtifact?.(artifact.id)} className={`overflow-hidden rounded-2xl border transition-all cursor-pointer ${isTagged ? "border-primary/50 ring-2 ring-primary/30" : artifact.status === "failed" ? "border-destructive/25" : artifact.status === "completed" ? "border-white/10 hover:border-white/25" : "border-dashed border-white/10"} bg-white/[0.025]`}><div className="relative aspect-[9/16] bg-black/35">{image ? <Image src={artifact.mediaUrl!} alt={artifact.label} fill unoptimized sizes="(max-width: 640px) 100vw, 33vw" className="object-contain" /> : video ? <video src={artifact.mediaUrl!} controls playsInline preload="metadata" className="size-full object-contain" /> : audio ? <div className="flex size-full items-center px-4"><audio src={artifact.mediaUrl!} controls preload="metadata" className="w-full" /></div> : <div className="grid size-full place-items-center text-muted-foreground">{artifact.status === "working" ? <LoaderCircle className="size-7 animate-spin text-primary" /> : artifact.kind.includes("video") || artifact.kind.includes("clip") || artifact.kind === "lip_sync" ? <Video className="size-7 opacity-35" /> : audioKind ? <Volume2 className="size-7 opacity-35" /> : <ImageIcon className="size-7 opacity-35" />}</div>}<span className={`absolute right-2 top-2 rounded-full border px-2 py-1 text-[7px] uppercase tracking-[0.1em] backdrop-blur ${artifact.status === "completed" ? "border-primary/25 bg-black/65 text-primary" : artifact.status === "failed" ? "border-destructive/25 bg-black/65 text-destructive" : "border-white/10 bg-black/65 text-muted-foreground"}`}>{artifact.status}</span>{isTagged && <span className="absolute left-2 top-2 rounded-full border border-primary/50 bg-primary/20 px-2 py-0.5 text-[7px] text-primary backdrop-blur">Tagged for edit</span>}</div><div className="p-3"><div className="flex items-start justify-between gap-2"><p className="text-[10px] font-medium text-[#d4d3cc]">{artifact.label}</p>{artifact.shotId && !["DOSSIER", "MASTER", "QC"].includes(artifact.shotId) && <span className="font-mono text-[8px] text-primary/70">{artifact.shotId}</span>}</div>{artifact.model && <p className="mt-1 truncate text-[8px] text-[#9db2ff]">{artifact.model}</p>}<p className="mt-1 text-[8px] leading-4 text-muted-foreground">{typeof artifact.metadata?.description === "string" ? artifact.metadata.description : ""}</p>{artifact.actualCostUsd && <p className="mt-1 text-[8px] text-primary">actual ${Number(artifact.actualCostUsd).toFixed(3)}</p>}</div></div>;
+    return <div key={artifact.id} className={`overflow-hidden rounded-2xl border ${artifact.status === "failed" ? "border-destructive/25" : artifact.status === "completed" ? "border-white/10" : "border-dashed border-white/10"} bg-white/[0.025]`}><div className="relative aspect-[9/16] bg-black/35">{image ? <Image src={artifact.mediaUrl!} alt={artifact.label} fill unoptimized sizes="(max-width: 640px) 100vw, 33vw" className="object-contain" /> : video ? <video src={artifact.mediaUrl!} controls playsInline preload="metadata" className="size-full object-contain" /> : audio ? <div className="flex size-full items-center px-4"><audio src={artifact.mediaUrl!} controls preload="metadata" className="w-full" /></div> : <div className="grid size-full place-items-center text-muted-foreground">{artifact.status === "working" ? <LoaderCircle className="size-7 animate-spin text-primary" /> : artifact.kind.includes("video") || artifact.kind.includes("clip") || artifact.kind === "lip_sync" ? <Video className="size-7 opacity-35" /> : audioKind ? <Volume2 className="size-7 opacity-35" /> : <ImageIcon className="size-7 opacity-35" />}</div>}<span className={`absolute right-2 top-2 rounded-full border px-2 py-1 text-[7px] uppercase tracking-[0.1em] backdrop-blur ${artifact.status === "completed" ? "border-primary/25 bg-black/65 text-primary" : artifact.status === "failed" ? "border-destructive/25 bg-black/65 text-destructive" : "border-white/10 bg-black/65 text-muted-foreground"}`}>{artifact.status}</span>{artifact.status === "completed" && onEditArtifact && <button type="button" onClick={() => { const p = prompt(`Regenerate ${artifact.label}:`); if (p) onEditArtifact(artifact.id, p); }} className="absolute left-2 top-2 rounded-full border border-white/20 bg-black/65 p-1.5 text-white/70 hover:bg-black/85 hover:text-white backdrop-blur transition"><Pencil className="size-3" /></button>}</div><div className="p-3"><div className="flex items-start justify-between gap-2"><p className="text-[10px] font-medium text-[#d4d3cc]">{artifact.label}</p>{artifact.shotId && !["DOSSIER", "MASTER", "QC"].includes(artifact.shotId) && <span className="font-mono text-[8px] text-primary/70">{artifact.shotId}</span>}</div>{artifact.model && <p className="mt-1 truncate text-[8px] text-[#9db2ff]">{artifact.model}</p>}<p className="mt-1 text-[8px] leading-4 text-muted-foreground">{typeof artifact.metadata?.description === "string" ? artifact.metadata.description : ""}</p>{artifact.actualCostUsd && <p className="mt-1 text-[8px] text-primary">actual ${Number(artifact.actualCostUsd).toFixed(3)}</p>}</div></div>;
   })}</div>;
 }
 
@@ -3020,7 +2999,6 @@ function Composer({
   busy,
   hasDirection,
   selectedShotIds,
-  taggedArtifacts,
   detectedLink,
   recording,
   inputRef,
@@ -3030,7 +3008,6 @@ function Composer({
   onSubmit,
   onRecord,
   onClearTarget,
-  onClearTagged,
 }: {
   prompt: string;
   setPrompt: (value: string) => void;
@@ -3038,7 +3015,6 @@ function Composer({
   busy: boolean;
   hasDirection: boolean;
   selectedShotIds: string[];
-  taggedArtifacts: Set<string>;
   detectedLink: boolean;
   recording: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -3048,7 +3024,6 @@ function Composer({
   onSubmit: () => Promise<void>;
   onRecord: () => void;
   onClearTarget: () => void;
-  onClearTagged: () => void;
 }) {
   return (
     <div className="sticky bottom-3 z-30 mt-6">
@@ -3061,10 +3036,9 @@ function Composer({
           if (files.length) addFiles(files);
         }}
       >
-        {(selectedShotIds.length > 0 || taggedArtifacts.size > 0 || detectedLink) && (
+        {(selectedShotIds.length > 0 || detectedLink) && (
           <div className="flex items-center gap-2 border-b border-white/7 px-3 py-2">
             {selectedShotIds.length > 0 && <button type="button" onClick={onClearTarget} className="flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/8 px-2.5 py-1 text-[9px] text-primary"><Scissors className="size-3" /> Targeting {selectedShotIds.join(" + ")}<X className="size-2.5" /></button>}
-            {taggedArtifacts.size > 0 && <button type="button" onClick={onClearTagged} className="flex items-center gap-1.5 rounded-full border border-[#d9a36c]/30 bg-[#d9a36c]/10 px-2.5 py-1 text-[9px] text-[#d9a36c]"><RefreshCw className="size-3" /> {taggedArtifacts.size} frame{taggedArtifacts.size === 1 ? "" : "s"} tagged for regen<X className="size-2.5" /></button>}
             {detectedLink && <span className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/3 px-2.5 py-1 text-[9px] text-muted-foreground"><Link2 className="size-3" /> Link included</span>}
           </div>
         )}
