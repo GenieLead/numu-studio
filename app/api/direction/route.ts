@@ -476,6 +476,9 @@ export async function POST(request: Request) {
 
     const id = crypto.randomUUID();
     const fallbackCard = createDirectorCard(prompt, bindings, previousCard, targetShotIds);
+    if (previousDirectionId) {
+      (fallbackCard as DirectorCard & { previousDirectionId?: string }).previousDirectionId = previousDirectionId;
+    }
     if (exactCheckpointReplay && (previousCard?.approvalStage ?? "concept") === "concept") {
       fallbackCard.revisionPlan = null;
     }

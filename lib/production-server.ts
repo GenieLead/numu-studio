@@ -212,24 +212,55 @@ export async function ensureProduction(
   )).limit(1);
   if (!run) {
     const now = new Date().toISOString();
-    [run] = await db.insert(productionRuns).values({
-      id: crypto.randomUUID(),
-      ownerEmail,
-      projectId,
-      directionId,
-      pipelineVersion: PRODUCTION_PIPELINE_VERSION,
-      mode: "studio-cut",
-      currentStage: "evidence",
-      status: "awaiting_evidence",
-      actualCostUsd: "0",
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing().returning();
-    if (!run) {
-      [run] = await db.select().from(productionRuns).where(and(
-        eq(productionRuns.directionId, directionId),
-        eq(productionRuns.ownerEmail, ownerEmail),
-      )).limit(1);
+    const card = owned.card as DirectorCard & { revisionPlan?: unknown; previousDirectionId?: string };
+    let inheritedDirectionId = directionId;
+    let inheritedRun = null;
+    if (card.revisionPlan) {
+      const previousDirId = (owned.direction as Record<string, unknown>).previousDirectionId as string | undefined
+        ?? card.previousDirectionId;
+      if (previousDirId) {
+        const [prevRun] = await db.select().from(productionRuns).where(and(
+          eq(productionRuns.directionId, previousDirId),
+          eq(productionRuns.ownerEmail, ownerEmail),
+          eq(productionRuns.projectId, projectId),
+        )).limit(1);
+        if (prevRun) {
+          inheritedRun = prevRun;
+          inheritedDirectionId = prevRun.directionId;
+        }
+      }
+      if (!inheritedRun) {
+        const allRuns = await db.select().from(productionRuns).where(and(
+          eq(productionRuns.ownerEmail, ownerEmail),
+          eq(productionRuns.projectId, projectId),
+        )).orderBy(desc(productionRuns.createdAt)).limit(5);
+        inheritedRun = allRuns[0] ?? null;
+        if (inheritedRun) inheritedDirectionId = inheritedRun.directionId;
+      }
+    }
+    if (inheritedRun && inheritedRun.directionId !== directionId) {
+      await db.update(productionRuns).set({ directionId, updatedAt: now }).where(eq(productionRuns.id, inheritedRun.id));
+      [run] = await db.select().from(productionRuns).where(eq(productionRuns.id, inheritedRun.id)).limit(1);
+    } else {
+      [run] = await db.insert(productionRuns).values({
+        id: crypto.randomUUID(),
+        ownerEmail,
+        projectId,
+        directionId,
+        pipelineVersion: PRODUCTION_PIPELINE_VERSION,
+        mode: "studio-cut",
+        currentStage: "evidence",
+        status: "awaiting_evidence",
+        actualCostUsd: "0",
+        createdAt: now,
+        updatedAt: now,
+      }).onConflictDoNothing().returning();
+      if (!run) {
+        [run] = await db.select().from(productionRuns).where(and(
+          eq(productionRuns.directionId, directionId),
+          eq(productionRuns.ownerEmail, ownerEmail),
+        )).limit(1);
+      }
     }
   }
   if (!run) throw new Error("Production could not be initialized.");
