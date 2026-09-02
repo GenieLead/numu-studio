@@ -2717,9 +2717,10 @@ function ProductionStudio({
       {action && <ProductionWorking action={assemblyProgress ?? action} elapsedSeconds={elapsedSeconds} remainingSeconds={remaining} />}
 
       <div className="px-5 py-6 sm:px-7">
-        {stage === "evidence" && <EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} />}
+        {stage === "evidence" && <div id="section-evidence"><EvidenceGate card={card} artifacts={stageArtifacts} ready={stageReady} busy={Boolean(action)} onBuild={onBuildEvidence} onApprove={() => onApproveStage("evidence")} /></div>}
 
         {(stage === "identity" || stage === "storyboard") && (
+          <div id="section-identity">
           <VisualGenerationGate
             stage={stage}
             artifacts={stageArtifacts}
@@ -2730,23 +2731,24 @@ function ProductionStudio({
             onGenerate={onGenerateStage}
             onApprove={() => onApproveStage(stage)}
           />
+          </div>
         )}
 
         {stage === "motion" && (
-          <MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} />
+          <div id="section-motion"><MotionGate artifacts={stageArtifacts} tasks={production.tasks} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onApprove={() => onApproveStage("motion")} /></div>
         )}
 
-        {stage === "voice" && <VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} />}
+        {stage === "voice" && <div id="section-voice"><VoiceGate artifacts={stageArtifacts} busy={Boolean(action)} onSkip={onSkipVoice} /></div>}
 
-        {stage === "score" && <ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} />}
+        {stage === "score" && <div id="section-score"><ScoreGate artifacts={stageArtifacts} quote={production.quote} authorizedMaxCostUsd={production.approvedCostUsd} ready={stageReady} busy={Boolean(action)} onGenerate={onGenerateStage} onSkip={onSkipScore} onApprove={() => onApproveStage("score")} /></div>}
 
-        {stage === "stems" && <StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} />}
+        {stage === "stems" && <div id="section-stems"><StemsGate artifacts={stageArtifacts} mediaWorker={mediaWorker} /></div>}
 
-        {stage === "conform" && <><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /><WorkerCapabilityPanel worker={mediaWorker} context="finish" /></>}
+        {stage === "conform" && <div id="section-conform"><AssemblyGate artifacts={production.artifacts} master={master} ready={stageReady} busy={Boolean(action)} deliverySeconds={card.deliverySeconds} onAssemble={onAssemble} onApprove={() => onApproveStage("conform")} /><WorkerCapabilityPanel worker={mediaWorker} context="finish" /></div>}
 
-        {stage === "qc" && <QcGate report={report} busy={Boolean(action)} onRun={onRunQc} />}
+        {stage === "qc" && <div id="section-qc"><QcGate report={report} busy={Boolean(action)} onRun={onRunQc} /></div>}
 
-        {stage === "master" && <MasterGate production={production} master={master} report={report} />}
+        {stage === "master" && <div id="section-master"><MasterGate production={production} master={master} report={report} /></div>}
 
         {failedArtifacts.length > 0 && (
           <div className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/[0.055] p-4">
@@ -2798,7 +2800,7 @@ function ProductionTrail({ current, artifacts }: { current: ProductionStage; art
     { id: "master", label: "Master" },
   ];
   const currentIndex = stages.findIndex((item) => item.id === current);
-  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <div key={item.id} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] ${complete ? "border-primary/20 bg-primary/8 text-primary" : working ? "border-white/18 bg-white/6 text-foreground" : "border-white/7 text-muted-foreground/50"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</div>; })}</div>;
+  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <a key={item.id} href={`#section-${item.id}`} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] hover:bg-white/10 transition-colors ${complete ? "border-primary/20 bg-primary/8 text-primary" : working ? "border-white/18 bg-white/6 text-foreground" : "border-white/7 text-muted-foreground/50"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</a>; })}</div>;
 }
 
 function ProductionWorking({ action, elapsedSeconds, remainingSeconds }: { action: string; elapsedSeconds: number; remainingSeconds: number }) {
@@ -2859,7 +2861,7 @@ function StemsGate({ artifacts, mediaWorker }: { artifacts: ProductionArtifactPu
 function AssemblyGate({ artifacts, master, ready, busy, deliverySeconds, onAssemble, onApprove }: { artifacts: ProductionArtifactPublic[]; master: ProductionArtifactPublic | undefined; ready: boolean; busy: boolean; deliverySeconds: number; onAssemble: () => void; onApprove: () => void }) {
   const shots = artifacts.filter((artifact) => artifact.kind === "shot_video");
   const assemblyDuration = shots.length * 4;
-  return <div><GateHeading number="5" title="Final test-video assembly" subtitle={`All approved source shots and their synchronized audio are preloaded, then trimmed to the locked ${deliverySeconds}s edit decision list in the browser. The result is a complete downloadable test video; a broadcast/cinema ProRes master still requires the optional professional media worker.`} badge="$0 deterministic assembly" /><ArtifactGrid artifacts={master ? [master] : shots} />{!ready && <Button disabled={busy} onClick={onAssemble} className="mt-5 rounded-full bg-primary text-primary-foreground"><Scissors className="size-3.5" /> Assemble {assemblyDuration}s final test video</Button>}{ready && <StageApproval label="Approve final test video" hint="Watch the complete video. Approval sends this exact file—not a prompt—to continuity QC." disabled={busy} onApprove={onApprove} />}</div>;
+  return <div><GateHeading number="5" title="Final test-video assembly" subtitle={`All approved source shots and their synchronized audio are preloaded, then trimmed to the locked ${deliverySeconds}s edit decision list in the browser. The result is a complete downloadable test video; a broadcast/cinema ProRes master still requires the optional professional media worker.`} badge="$0 deterministic assembly" /><ArtifactGrid artifacts={master ? [master] : shots} />{!ready && <Button disabled={busy} onClick={onAssemble} className="mt-5 rounded-full bg-primary text-primary-foreground"><Scissors className="size-3.5" /> Assemble {assemblyDuration}s final test video</Button>}{ready && <div className="mt-4 flex flex-wrap items-center gap-3">{master && <Button asChild className="rounded-full bg-primary text-primary-foreground"><a href={`/api/production/artifacts/${master.id}/media`} target="_blank" rel="noopener noreferrer"><Download className="size-3.5" /> Download test video</a></Button>}<StageApproval label="Approve final test video" hint="Watch the complete video. Approval sends this exact file—not a prompt—to continuity QC." disabled={busy} onApprove={onApprove} /></div>}</div>;
 }
 
 function QcGate({ report, busy, onRun }: { report: ProductionArtifactPublic | undefined; busy: boolean; onRun: () => void }) {
