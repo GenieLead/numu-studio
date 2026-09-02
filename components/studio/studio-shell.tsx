@@ -2693,6 +2693,7 @@ function ProductionStudio({
   onResetFailedArtifact: (artifactId: string) => void;
   onRefresh: () => void;
 }) {
+  const [selectedStage, setSelectedStage] = useState<ProductionStage | null>(null);
   if (loading && !production) {
     return <div className="border-t border-white/8 px-5 py-7 sm:px-7"><div className="flex items-center gap-3 text-sm"><LoaderCircle className="size-5 animate-spin text-primary" />Opening the protected production room…</div></div>;
   }
@@ -2722,7 +2723,7 @@ function ProductionStudio({
           </div>
           <div className="rounded-xl border border-primary/15 bg-primary/[0.05] px-3 py-2 text-right"><p className="text-[8px] uppercase tracking-[0.14em] text-muted-foreground">Verified spend</p><p className="mt-1 font-mono text-sm text-primary">${production.actualCostUsd.toFixed(2)}</p></div>
         </div>
-        <ProductionTrail current={stage} artifacts={production.artifacts} />
+        <ProductionTrail current={stage} selected={selectedStage ?? stage} onSelect={setSelectedStage} artifacts={production.artifacts} />
         <StudioRouteMap />
       </div>
 
@@ -2799,7 +2800,7 @@ function StudioRouteMap() {
   );
 }
 
-function ProductionTrail({ current, artifacts }: { current: ProductionStage; artifacts: ProductionArtifactPublic[] }) {
+function ProductionTrail({ current, selected, onSelect, artifacts }: { current: ProductionStage; selected: ProductionStage; onSelect: (stage: ProductionStage) => void; artifacts: ProductionArtifactPublic[] }) {
   const stages: Array<{ id: ProductionStage; label: string }> = [
     { id: "evidence", label: "Evidence" },
     { id: "identity", label: "Identity" },
@@ -2813,7 +2814,7 @@ function ProductionTrail({ current, artifacts }: { current: ProductionStage; art
     { id: "master", label: "Master" },
   ];
   const currentIndex = stages.findIndex((item) => item.id === current);
-  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <div key={item.id} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] ${complete ? "border-primary/20 bg-primary/8 text-primary" : working ? "border-white/18 bg-white/6 text-foreground" : "border-white/7 text-muted-foreground/50"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</div>; })}</div>;
+  return <div className="mt-4 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">{stages.map((item, index) => { const stageArtifacts = artifacts.filter((artifact) => artifact.stage === item.id && artifact.kind !== "source_asset"); const complete = index < currentIndex || (item.id === "master" && current === "master"); const working = item.id === current; const isSelected = item.id === selected; const count = stageArtifacts.filter((artifact) => artifact.status === "completed").length; return <button key={item.id} type="button" onClick={() => onSelect(item.id)} className={`flex min-w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[8px] transition ${isSelected ? "border-primary/40 bg-primary/15 text-primary ring-1 ring-primary/20" : complete ? "border-primary/20 bg-primary/8 text-primary hover:bg-primary/12" : working ? "border-white/18 bg-white/6 text-foreground hover:bg-white/10" : "border-white/7 text-muted-foreground/50 hover:border-white/15"}`}>{complete ? <Check className="size-2.5" /> : <span className={`size-1.5 rounded-full ${working ? "bg-primary" : "bg-white/15"}`} />}{item.label}{stageArtifacts.length > 1 ? <span className="text-[7px] opacity-60">{count}/{stageArtifacts.length}</span> : null}</button>; })}</div>;
 }
 
 function ProductionWorking({ action, elapsedSeconds, remainingSeconds }: { action: string; elapsedSeconds: number; remainingSeconds: number }) {
