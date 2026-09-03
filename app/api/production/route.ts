@@ -1113,43 +1113,23 @@ export async function POST(request: Request) {
           eq(productionArtifacts.runId, production.run.id),
           inArray(productionArtifacts.id, artifactIds),
         ));
-        const shotIdsToReset = new Set<string>();
+        if (!affected.length) throw new Error("Selected artifacts not found in this production run.");
+        const targetStage = affected[0].stage;
         for (const artifact of affected) {
-          if (artifact.status === "completed" || artifact.status === "failed") {
-            shotIdsToReset.add(artifact.shotId ?? "UNKNOWN");
+          if (artifact.status === "completed" || artifact.status === "failed" || artifact.status === "planned") {
             await db.update(productionArtifacts).set({
               status: "planned",
               approvalStatus: "pending",
               error: null,
               objectKey: null,
               actualCostUsd: null,
+              prompt: body.prompt || artifact.prompt,
               metadataJson: JSON.stringify({ ...metadata(artifact.metadataJson), regeneratedAt: now, previousStatus: artifact.status, regenerationPrompt: body.prompt }),
               updatedAt: now,
             }).where(eq(productionArtifacts.id, artifact.id));
           }
         }
-        for (const shotId of shotIdsToReset) {
-          if (shotId && shotId !== "UNKNOWN") {
-            const shotArtifacts = await db.select().from(productionArtifacts).where(and(
-              eq(productionArtifacts.runId, production.run.id),
-              eq(productionArtifacts.shotId, shotId),
-            ));
-            for (const a of shotArtifacts) {
-              if ((a.status === "completed" || a.status === "failed") && !artifactIds.includes(a.id)) {
-                await db.update(productionArtifacts).set({
-                  status: "planned",
-                  approvalStatus: "pending",
-                  error: null,
-                  objectKey: null,
-                  actualCostUsd: null,
-                  metadataJson: JSON.stringify({ ...metadata(a.metadataJson), regeneratedAt: now, previousStatus: a.status }),
-                  updatedAt: now,
-                }).where(eq(productionArtifacts.id, a.id));
-              }
-            }
-          }
-        }
-        await db.update(productionRuns).set({ status: "stage_ready", error: null, updatedAt: now }).where(eq(productionRuns.id, production.run.id));
+        await db.update(productionRuns).set({ currentStage: targetStage, status: "stage_ready", error: null, updatedAt: now }).where(eq(productionRuns.id, production.run.id));
         production = await refreshProduction(production);
       } else {
         throw new Error("Unknown or incomplete production action.");

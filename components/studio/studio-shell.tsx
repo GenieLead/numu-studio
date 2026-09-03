@@ -1272,6 +1272,7 @@ export function StudioShell({ userName }: { userName: string }) {
         setBusy(false);
         setWorkingPhase(null);
         setProductionAction(null);
+        if (direction && activeProjectId) void loadProductionRoute(direction.id, activeProjectId);
       } catch (caught) {
         setBusy(false);
         setWorkingPhase(null);
